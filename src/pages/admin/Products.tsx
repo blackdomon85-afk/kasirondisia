@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/table";
 import { Plus, Search, Edit, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Product {
   id: string;
@@ -22,53 +23,32 @@ interface Product {
   category: string;
 }
 
-const MOCK_PRODUCTS: Product[] = [
-  {
-    id: "1",
-    name: "Indomie Goreng",
-    barcode: "8888001234567",
-    price: 3500,
-    stock: 450,
-    category: "Makanan",
-  },
-  {
-    id: "2",
-    name: "Aqua 600ml",
-    barcode: "8888001234568",
-    price: 3000,
-    stock: 380,
-    category: "Minuman",
-  },
-  {
-    id: "3",
-    name: "Teh Pucuk",
-    barcode: "8888001234569",
-    price: 4000,
-    stock: 320,
-    category: "Minuman",
-  },
-  {
-    id: "4",
-    name: "Kopi Kapal Api",
-    barcode: "8888001234570",
-    price: 2500,
-    stock: 280,
-    category: "Minuman",
-  },
-  {
-    id: "5",
-    name: "Susu Ultra 250ml",
-    barcode: "8888001234571",
-    price: 5500,
-    stock: 250,
-    category: "Minuman",
-  },
-];
-
 const Products = () => {
-  const [products] = useState<Product[]>(MOCK_PRODUCTS);
+  const [products, setProducts] = useState<Product[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const { toast } = useToast();
+
+  useEffect(() => {
+    fetchProducts();
+  }, []);
+
+  const fetchProducts = async () => {
+    const { data, error } = await supabase
+      .from("products")
+      .select("*")
+      .order("name");
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Gagal memuat produk",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setProducts(data || []);
+  };
 
   const filteredProducts = products.filter(
     (product) =>

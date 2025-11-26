@@ -1,7 +1,8 @@
-import { Home, LayoutDashboard, Package, FileText } from "lucide-react";
+import { Home, LayoutDashboard, Package, FileText, LogOut } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/lib/auth";
 
 import {
   Sidebar,
@@ -22,9 +23,9 @@ const items = [
 ];
 
 export function AppSidebar() {
+  const { signOut } = useAuth();
   const { state } = useSidebar();
   const location = useLocation();
-  const navigate = useNavigate();
   const currentPath = location.pathname;
 
   const isActive = (path: string) => {
@@ -71,10 +72,10 @@ export function AppSidebar() {
                   <Button
                     variant="ghost"
                     className="w-full justify-start"
-                    onClick={() => navigate("/")}
+                    onClick={signOut}
                   >
-                    <Home className="w-4 h-4" />
-                    {!collapsed && <span>Kembali ke Home</span>}
+                    <LogOut className="w-4 h-4" />
+                    {!collapsed && <span>Keluar</span>}
                   </Button>
                 </SidebarMenuButton>
               </SidebarMenuItem>
