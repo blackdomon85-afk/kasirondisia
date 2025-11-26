@@ -1,145 +1,291 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
-import { Search, ScanBarcode, Printer, Home, Trash2 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Search, Scan, ShoppingCart, Trash2, Printer, LogOut } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/lib/auth";
 
 interface Product {
   id: string;
   name: string;
-  price: number;
   barcode: string;
+  price: number;
+  stock: number;
+  category: string;
+  image_url: string | null;
 }
 
 interface CartItem extends Product {
   quantity: number;
+  subtotal: number;
 }
 
-const MOCK_PRODUCTS: Product[] = [
-  { id: "1", name: "Indomie Goreng", price: 3500, barcode: "8888001234567" },
-  { id: "2", name: "Aqua 600ml", price: 3000, barcode: "8888001234568" },
-  { id: "3", name: "Teh Pucuk", price: 4000, barcode: "8888001234569" },
-  { id: "4", name: "Kopi Kapal Api", price: 2500, barcode: "8888001234570" },
-  { id: "5", name: "Susu Ultra 250ml", price: 5500, barcode: "8888001234571" },
-];
-
 const Kasir = () => {
-  const navigate = useNavigate();
-  const { toast } = useToast();
+  const [products, setProducts] = useState<Product[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [barcode, setBarcode] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [barcodeInput, setBarcodeInput] = useState("");
-  const [cashReceived, setCashReceived] = useState("");
+  const [paymentAmount, setPaymentAmount] = useState("");
+  const { toast } = useToast();
+  const { signOut, user } = useAuth();
+
+  useEffect(() => {
+    fetchProducts();
+  }, []);
+
+  const fetchProducts = async () => {
+    const { data, error } = await supabase
+      .from("products")
+      .select("*")
+      .order("name");
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Gagal memuat produk",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setProducts(data || []);
+  };
+
+  const handleScanBarcode = async () => {
+    if (!barcode.trim()) return;
+
+    const product = products.find((p) => p.barcode === barcode);
+    
+    if (!product) {
+      toast({
+        title: "Produk Tidak Ditemukan",
+        description: "Barcode tidak terdaftar",
+        variant: "destructive",
+      });
+      setBarcode("");
+      return;
+    }
+
+    addToCart(product);
+    setBarcode("");
+  };
 
   const addToCart = (product: Product) => {
     const existingItem = cart.find((item) => item.id === product.id);
+
     if (existingItem) {
+      if (existingItem.quantity >= product.stock) {
+        toast({
+          title: "Stok Tidak Cukup",
+          description: `Stok ${product.name} hanya tersisa ${product.stock}`,
+          variant: "destructive",
+        });
+        return;
+      }
+
       setCart(
         cart.map((item) =>
           item.id === product.id
-            ? { ...item, quantity: item.quantity + 1 }
+            ? {
+                ...item,
+                quantity: item.quantity + 1,
+                subtotal: (item.quantity + 1) * item.price,
+              }
             : item
         )
       );
     } else {
-      setCart([...cart, { ...product, quantity: 1 }]);
+      setCart([
+        ...cart,
+        {
+          ...product,
+          quantity: 1,
+          subtotal: product.price,
+        },
+      ]);
     }
+
     toast({
-      title: "Produk ditambahkan",
+      title: "Produk Ditambahkan",
       description: `${product.name} ditambahkan ke keranjang`,
     });
   };
 
-  const removeFromCart = (productId: string) => {
-    setCart(cart.filter((item) => item.id !== productId));
+  const removeFromCart = (id: string) => {
+    setCart(cart.filter((item) => item.id !== id));
   };
 
-  const handleBarcodeSearch = () => {
-    const product = MOCK_PRODUCTS.find((p) => p.barcode === barcodeInput);
-    if (product) {
-      addToCart(product);
-      setBarcodeInput("");
-    } else {
+  const updateQuantity = (id: string, newQuantity: number) => {
+    const item = cart.find((i) => i.id === id);
+    if (!item) return;
+
+    const product = products.find((p) => p.id === id);
+    if (!product) return;
+
+    if (newQuantity > product.stock) {
       toast({
-        title: "Produk tidak ditemukan",
-        description: "Barcode tidak valid",
+        title: "Stok Tidak Cukup",
+        description: `Stok ${product.name} hanya tersisa ${product.stock}`,
         variant: "destructive",
       });
+      return;
     }
+
+    if (newQuantity <= 0) {
+      removeFromCart(id);
+      return;
+    }
+
+    setCart(
+      cart.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              quantity: newQuantity,
+              subtotal: newQuantity * item.price,
+            }
+          : item
+      )
+    );
   };
 
-  const filteredProducts = MOCK_PRODUCTS.filter((product) =>
-    product.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const totalAmount = cart.reduce((sum, item) => sum + item.subtotal, 0);
+  const changeAmount = paymentAmount ? parseFloat(paymentAmount) - totalAmount : 0;
 
-  const total = cart.reduce(
-    (sum, item) => sum + item.price * item.quantity,
-    0
-  );
-  const change = cashReceived ? parseInt(cashReceived) - total : 0;
+  const handleCheckout = async () => {
+    const payment = parseFloat(paymentAmount);
+    
+    if (!payment || payment < totalAmount) {
+      toast({
+        title: "Pembayaran Tidak Valid",
+        description: "Jumlah pembayaran kurang dari total belanja",
+        variant: "destructive",
+      });
+      return;
+    }
 
-  const handlePrint = () => {
     if (cart.length === 0) {
       toast({
-        title: "Keranjang kosong",
+        title: "Keranjang Kosong",
         description: "Tambahkan produk terlebih dahulu",
         variant: "destructive",
       });
       return;
     }
-    if (!cashReceived || parseInt(cashReceived) < total) {
+
+    try {
+      // Create transaction
+      const { data: transaction, error: transactionError } = await supabase
+        .from("transactions")
+        .insert({
+          cashier_id: user?.id,
+          total_amount: totalAmount,
+          payment_amount: payment,
+          change_amount: changeAmount,
+        })
+        .select()
+        .single();
+
+      if (transactionError) throw transactionError;
+
+      // Create transaction items
+      const transactionItems = cart.map((item) => ({
+        transaction_id: transaction.id,
+        product_id: item.id,
+        product_name: item.name,
+        product_price: item.price,
+        quantity: item.quantity,
+        subtotal: item.subtotal,
+      }));
+
+      const { error: itemsError } = await supabase
+        .from("transaction_items")
+        .insert(transactionItems);
+
+      if (itemsError) throw itemsError;
+
+      // Update stock
+      for (const item of cart) {
+        const { error: stockError } = await supabase
+          .from("products")
+          .update({ stock: item.stock - item.quantity })
+          .eq("id", item.id);
+
+        if (stockError) throw stockError;
+      }
+
       toast({
-        title: "Uang tidak cukup",
-        description: "Masukkan jumlah uang yang diterima",
+        title: "Transaksi Berhasil",
+        description: `Kembalian: Rp ${changeAmount.toLocaleString("id-ID")}`,
+      });
+
+      // Reset
+      setCart([]);
+      setPaymentAmount("");
+      fetchProducts();
+    } catch (error: any) {
+      toast({
+        title: "Transaksi Gagal",
+        description: error.message,
         variant: "destructive",
       });
-      return;
     }
-
-    toast({
-      title: "Transaksi berhasil",
-      description: "Nota akan dicetak (simulasi)",
-    });
-    
-    // Reset form
-    setCart([]);
-    setCashReceived("");
   };
+
+  const filteredProducts = products.filter(
+    (product) =>
+      product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      product.barcode.includes(searchQuery)
+  );
 
   return (
     <div className="min-h-screen bg-background p-6">
-      <div className="max-w-7xl mx-auto">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold text-foreground">Kasir POS</h1>
-          <Button variant="outline" onClick={() => navigate("/")}>
-            <Home className="w-4 h-4 mr-2" />
-            Kembali
+      <div className="max-w-7xl mx-auto space-y-6">
+        {/* Header */}
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground">Kasir</h1>
+            <p className="text-muted-foreground">Sistem Point of Sale</p>
+          </div>
+          <Button variant="outline" onClick={signOut}>
+            <LogOut className="w-4 h-4 mr-2" />
+            Keluar
           </Button>
         </div>
 
-        <div className="grid lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Products Section */}
+          <div className="lg:col-span-2 space-y-4">
+            {/* Barcode Scanner */}
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Scan className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Scan barcode atau ketik manual..."
+                      className="pl-10"
+                      value={barcode}
+                      onChange={(e) => setBarcode(e.target.value)}
+                      onKeyPress={(e) => e.key === "Enter" && handleScanBarcode()}
+                    />
+                  </div>
+                  <Button onClick={handleScanBarcode}>Scan</Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Product Search */}
             <Card>
               <CardHeader>
-                <CardTitle>Scan / Cari Produk</CardTitle>
+                <CardTitle>Daftar Produk</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Masukkan barcode..."
-                    value={barcodeInput}
-                    onChange={(e) => setBarcodeInput(e.target.value)}
-                    onKeyPress={(e) => e.key === "Enter" && handleBarcodeSearch()}
-                  />
-                  <Button onClick={handleBarcodeSearch}>
-                    <ScanBarcode className="w-4 h-4 mr-2" />
-                    Scan
-                  </Button>
-                </div>
-
                 <div className="relative">
                   <Search className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
                   <Input
@@ -150,109 +296,167 @@ const Kasir = () => {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 max-h-80 overflow-y-auto">
-                  {filteredProducts.map((product) => (
-                    <Card
-                      key={product.id}
-                      className="cursor-pointer hover:border-primary transition-colors"
-                      onClick={() => addToCart(product)}
-                    >
-                      <CardContent className="p-4">
-                        <h3 className="font-semibold text-foreground mb-1">
-                          {product.name}
-                        </h3>
-                        <p className="text-sm text-muted-foreground mb-2">
-                          {product.barcode}
-                        </p>
-                        <p className="text-lg font-bold text-primary">
-                          Rp {product.price.toLocaleString("id-ID")}
-                        </p>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
+                <ScrollArea className="h-[400px]">
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    {filteredProducts.map((product) => (
+                      <Card
+                        key={product.id}
+                        className="cursor-pointer hover:shadow-lg transition-shadow"
+                        onClick={() => addToCart(product)}
+                      >
+                        <CardContent className="p-3">
+                          {product.image_url && (
+                            <img
+                              src={product.image_url}
+                              alt={product.name}
+                              className="w-full h-24 object-cover rounded-md mb-2"
+                            />
+                          )}
+                          <h3 className="font-semibold text-sm mb-1 line-clamp-2">
+                            {product.name}
+                          </h3>
+                          <p className="text-primary font-bold text-sm">
+                            Rp {product.price.toLocaleString("id-ID")}
+                          </p>
+                          <Badge
+                            variant={product.stock < 50 ? "destructive" : "secondary"}
+                            className="text-xs mt-1"
+                          >
+                            Stok: {product.stock}
+                          </Badge>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </ScrollArea>
               </CardContent>
             </Card>
           </div>
 
-          <div className="space-y-6">
+          {/* Cart Section */}
+          <div className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle>Keranjang</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <ShoppingCart className="w-5 h-5" />
+                  Keranjang ({cart.length})
+                </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="space-y-3 max-h-60 overflow-y-auto">
+                <ScrollArea className="h-[300px]">
                   {cart.length === 0 ? (
                     <p className="text-center text-muted-foreground py-8">
                       Keranjang kosong
                     </p>
                   ) : (
-                    cart.map((item) => (
-                      <div
-                        key={item.id}
-                        className="flex justify-between items-center p-3 bg-secondary rounded-lg"
-                      >
-                        <div className="flex-1">
-                          <p className="font-medium text-foreground">
-                            {item.name}
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            {item.quantity} x Rp{" "}
-                            {item.price.toLocaleString("id-ID")}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <p className="font-bold text-foreground">
-                            Rp {(item.price * item.quantity).toLocaleString("id-ID")}
-                          </p>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => removeFromCart(item.id)}
-                          >
-                            <Trash2 className="w-4 h-4 text-destructive" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))
+                    <div className="space-y-3">
+                      {cart.map((item) => (
+                        <Card key={item.id}>
+                          <CardContent className="p-3">
+                            <div className="flex justify-between items-start mb-2">
+                              <h4 className="font-semibold text-sm flex-1">
+                                {item.name}
+                              </h4>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6"
+                                onClick={() => removeFromCart(item.id)}
+                              >
+                                <Trash2 className="w-3 h-3 text-destructive" />
+                              </Button>
+                            </div>
+                            <div className="flex items-center gap-2 mb-2">
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                className="h-7 w-7"
+                                onClick={() =>
+                                  updateQuantity(item.id, item.quantity - 1)
+                                }
+                              >
+                                -
+                              </Button>
+                              <span className="text-sm font-medium w-8 text-center">
+                                {item.quantity}
+                              </span>
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                className="h-7 w-7"
+                                onClick={() =>
+                                  updateQuantity(item.id, item.quantity + 1)
+                                }
+                              >
+                                +
+                              </Button>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                              <span className="text-muted-foreground">
+                                @ Rp {item.price.toLocaleString("id-ID")}
+                              </span>
+                              <span className="font-semibold text-primary">
+                                Rp {item.subtotal.toLocaleString("id-ID")}
+                              </span>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
                   )}
-                </div>
+                </ScrollArea>
 
                 <Separator />
 
                 <div className="space-y-3">
-                  <div className="flex justify-between text-lg">
-                    <span className="font-medium">Total:</span>
-                    <span className="font-bold text-primary">
-                      Rp {total.toLocaleString("id-ID")}
+                  <div className="flex justify-between text-lg font-bold">
+                    <span>Total:</span>
+                    <span className="text-primary">
+                      Rp {totalAmount.toLocaleString("id-ID")}
                     </span>
                   </div>
 
-                  <div>
-                    <label className="text-sm font-medium text-foreground mb-2 block">
-                      Uang Diterima
-                    </label>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Jumlah Bayar</label>
                     <Input
                       type="number"
-                      placeholder="Masukkan jumlah uang..."
-                      value={cashReceived}
-                      onChange={(e) => setCashReceived(e.target.value)}
+                      placeholder="0"
+                      value={paymentAmount}
+                      onChange={(e) => setPaymentAmount(e.target.value)}
                     />
                   </div>
 
-                  {cashReceived && parseInt(cashReceived) >= total && (
-                    <div className="flex justify-between text-lg p-3 bg-success/10 rounded-lg">
-                      <span className="font-medium text-success-foreground">Kembalian:</span>
-                      <span className="font-bold text-success">
-                        Rp {change.toLocaleString("id-ID")}
+                  {paymentAmount && (
+                    <div className="flex justify-between text-lg">
+                      <span>Kembalian:</span>
+                      <span
+                        className={
+                          changeAmount < 0
+                            ? "text-destructive font-bold"
+                            : "text-success font-bold"
+                        }
+                      >
+                        Rp {Math.max(0, changeAmount).toLocaleString("id-ID")}
                       </span>
                     </div>
                   )}
 
-                  <Button className="w-full" size="lg" onClick={handlePrint}>
-                    <Printer className="w-4 h-4 mr-2" />
-                    Cetak Nota
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      className="flex-1"
+                      onClick={() => {
+                        setCart([]);
+                        setPaymentAmount("");
+                      }}
+                    >
+                      Reset
+                    </Button>
+                    <Button className="flex-1" onClick={handleCheckout}>
+                      <Printer className="w-4 h-4 mr-2" />
+                      Bayar
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
