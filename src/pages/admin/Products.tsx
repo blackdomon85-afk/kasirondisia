@@ -10,9 +10,20 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Plus, Search, Edit, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import ProductForm from "@/components/ProductForm";
 
 interface Product {
   id: string;
@@ -21,11 +32,16 @@ interface Product {
   price: number;
   stock: number;
   category: string;
+  image_url: string | null;
 }
 
 const Products = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [showForm, setShowForm] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<Product | undefined>();
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [productToDelete, setProductToDelete] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -56,30 +72,67 @@ const Products = () => {
       product.barcode.includes(searchQuery)
   );
 
-  const handleEdit = (id: string) => {
-    toast({
-      title: "Edit Produk",
-      description: "Fitur edit akan tersedia setelah backend diaktifkan",
-    });
+  const handleEdit = (product: Product) => {
+    setEditingProduct(product);
+    setShowForm(true);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async () => {
+    if (!productToDelete) return;
+
+    const { error } = await supabase
+      .from("products")
+      .delete()
+      .eq("id", productToDelete);
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Gagal menghapus produk",
+        variant: "destructive",
+      });
+      return;
+    }
+
     toast({
-      title: "Hapus Produk",
-      description: "Fitur hapus akan tersedia setelah backend diaktifkan",
-      variant: "destructive",
+      title: "Produk Dihapus",
+      description: "Produk berhasil dihapus",
     });
+
+    setDeleteDialogOpen(false);
+    setProductToDelete(null);
+    fetchProducts();
+  };
+
+  const openDeleteDialog = (id: string) => {
+    setProductToDelete(id);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleFormSuccess = () => {
+    fetchProducts();
+    setEditingProduct(undefined);
   };
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-foreground">Produk</h1>
-        <Button>
+        <Button onClick={() => setShowForm(true)}>
           <Plus className="w-4 h-4 mr-2" />
           Tambah Produk
         </Button>
       </div>
+
+      <ProductForm
+        open={showForm}
+        onOpenChange={(open) => {
+          setShowForm(open);
+          if (!open) setEditingProduct(undefined);
+        }}
+        product={editingProduct}
+        onSuccess={handleFormSuccess}
+      />
 
       <Card>
         <CardHeader>
@@ -137,14 +190,14 @@ const Products = () => {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleEdit(product.id)}
+                          onClick={() => handleEdit(product)}
                         >
                           <Edit className="w-4 h-4" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleDelete(product.id)}
+                          onClick={() => openDeleteDialog(product.id)}
                         >
                           <Trash2 className="w-4 h-4 text-destructive" />
                         </Button>
@@ -157,6 +210,22 @@ const Products = () => {
           </div>
         </CardContent>
       </Card>
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus Produk</AlertDialogTitle>
+            <AlertDialogDescription>
+              Apakah Anda yakin ingin menghapus produk ini? Tindakan ini tidak
+              dapat dibatalkan.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete}>Hapus</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
