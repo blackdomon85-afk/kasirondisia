@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -48,16 +48,29 @@ const CATEGORIES = [
 
 const ProductForm = ({ open, onOpenChange, product, onSuccess }: ProductFormProps) => {
   const [loading, setLoading] = useState(false);
-  const [name, setName] = useState(product?.name || "");
-  const [barcode, setBarcode] = useState(product?.barcode || "");
-  const [price, setPrice] = useState(product?.price.toString() || "");
-  const [stock, setStock] = useState(product?.stock.toString() || "");
-  const [category, setCategory] = useState(product?.category || "");
+  const [name, setName] = useState("");
+  const [barcode, setBarcode] = useState("");
+  const [price, setPrice] = useState("");
+  const [stock, setStock] = useState("");
+  const [category, setCategory] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(
-    product?.image_url || null
-  );
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const { toast } = useToast();
+
+  // Update form when product changes
+  useEffect(() => {
+    if (product) {
+      setName(product.name);
+      setBarcode(product.barcode);
+      setPrice(product.price.toString());
+      setStock(product.stock.toString());
+      setCategory(product.category);
+      setImagePreview(product.image_url);
+      setImageFile(null);
+    } else {
+      resetForm();
+    }
+  }, [product, open]);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

@@ -16,41 +16,78 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Download, Printer } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Download, FileText } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import * as XLSX from "xlsx";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 interface Transaction {
   id: string;
   date: string;
   items: number;
   total: number;
+  category?: string;
 }
 
 const Reports = () => {
-  const [selectedMonth, setSelectedMonth] = useState("01-2025");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("all");
+  const [categories, setCategories] = useState<string[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const { toast } = useToast();
 
   useEffect(() => {
-    fetchTransactions();
-  }, [selectedMonth]);
+    // Set default dates to current month
+    const now = new Date();
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    setStartDate(firstDay.toISOString().split("T")[0]);
+    setEndDate(lastDay.toISOString().split("T")[0]);
+    
+    fetchCategories();
+  }, []);
+
+  useEffect(() => {
+    if (startDate && endDate) {
+      fetchTransactions();
+    }
+  }, [startDate, endDate, selectedCategory]);
+
+  const fetchCategories = async () => {
+    const { data, error } = await supabase
+      .from("products")
+      .select("category");
+
+    if (!error && data) {
+      const uniqueCategories = [...new Set(data.map((p) => p.category))];
+      setCategories(uniqueCategories);
+    }
+  };
 
   const fetchTransactions = async () => {
-    const [month, year] = selectedMonth.split("-");
-    const startDate = new Date(parseInt(year), parseInt(month) - 1, 1);
-    const endDate = new Date(parseInt(year), parseInt(month), 0, 23, 59, 59);
+    const startDateTime = new Date(startDate);
+    startDateTime.setHours(0, 0, 0, 0);
+    const endDateTime = new Date(endDate);
+    endDateTime.setHours(23, 59, 59, 999);
 
-    const { data: transactionData, error } = await supabase
+    let query = supabase
       .from("transactions")
       .select(`
         id,
         created_at,
-        total_amount
+        total_amount,
+        transaction_items(product_name, quantity, subtotal)
       `)
-      .gte("created_at", startDate.toISOString())
-      .lte("created_at", endDate.toISOString())
+      .gte("created_at", startDateTime.toISOString())
+      .lte("created_at", endDateTime.toISOString())
       .order("created_at", { ascending: false });
+
+    const { data: transactionData, error } = await query;
 
     if (error) {
       toast({
@@ -61,22 +98,32 @@ const Reports = () => {
       return;
     }
 
-    // Fetch transaction items count for each transaction
-    const transactionsWithItems = await Promise.all(
-      (transactionData || []).map(async (t) => {
-        const { count } = await supabase
-          .from("transaction_items")
-          .select("*", { count: "exact", head: true })
-          .eq("transaction_id", t.id);
+    // Filter by category if selected
+    let filteredTransactions = transactionData || [];
+    
+    if (selectedCategory !== "all") {
+      // Get products in selected category
+      const { data: categoryProducts } = await supabase
+        .from("products")
+        .select("name")
+        .eq("category", selectedCategory);
 
-        return {
-          id: t.id.substring(0, 8).toUpperCase(),
-          date: new Date(t.created_at).toLocaleDateString("id-ID"),
-          items: count || 0,
-          total: parseFloat(t.total_amount.toString()),
-        };
-      })
-    );
+      const productNames = new Set(categoryProducts?.map(p => p.name) || []);
+      
+      // Filter transactions that have items from selected category
+      filteredTransactions = filteredTransactions.filter(t => 
+        t.transaction_items.some((item: any) => productNames.has(item.product_name))
+      );
+    }
+
+    const transactionsWithItems = filteredTransactions.map((t) => {
+      return {
+        id: t.id.substring(0, 8).toUpperCase(),
+        date: new Date(t.created_at).toLocaleDateString("id-ID"),
+        items: t.transaction_items.length,
+        total: parseFloat(t.total_amount.toString()),
+      };
+    });
 
     setTransactions(transactionsWithItems);
   };
@@ -84,67 +131,127 @@ const Reports = () => {
   const totalRevenue = transactions.reduce((sum, t) => sum + t.total, 0);
   const totalItems = transactions.reduce((sum, t) => sum + t.items, 0);
 
-  const handlePrint = () => {
+  const exportToExcel = () => {
+    const worksheet = XLSX.utils.json_to_sheet(
+      transactions.map((t) => ({
+        "ID Transaksi": t.id,
+        Tanggal: t.date,
+        "Jumlah Item": t.items,
+        Total: t.total,
+      }))
+    );
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Laporan");
+
+    const fileName = `Laporan_${startDate}_${endDate}${selectedCategory !== "all" ? `_${selectedCategory}` : ""}.xlsx`;
+    XLSX.writeFile(workbook, fileName);
+
     toast({
-      title: "Print Laporan",
-      description: "Fitur print akan tersedia segera",
+      title: "Berhasil",
+      description: "Laporan berhasil diexport ke Excel",
     });
   };
 
-  const handleDownload = () => {
-    toast({
-      title: "Download Laporan",
-      description: "Fitur download akan tersedia segera",
-    });
-  };
-
-  const generateMonthOptions = () => {
-    const options = [];
-    const currentDate = new Date();
-    for (let i = 0; i < 12; i++) {
-      const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
-      const month = String(date.getMonth() + 1).padStart(2, "0");
-      const year = date.getFullYear();
-      const value = `${month}-${year}`;
-      const label = date.toLocaleDateString("id-ID", { month: "long", year: "numeric" });
-      options.push({ value, label });
+  const exportToPDF = () => {
+    const doc = new jsPDF();
+    
+    doc.setFontSize(18);
+    doc.text("Laporan Penjualan", 14, 20);
+    
+    doc.setFontSize(11);
+    doc.text(`Periode: ${startDate} - ${endDate}`, 14, 30);
+    if (selectedCategory !== "all") {
+      doc.text(`Kategori: ${selectedCategory}`, 14, 37);
     }
-    return options;
+    
+    doc.text(`Total Transaksi: ${transactions.length}`, 14, selectedCategory !== "all" ? 44 : 37);
+    doc.text(`Total Item: ${totalItems}`, 14, selectedCategory !== "all" ? 51 : 44);
+    doc.text(`Total Pendapatan: Rp ${totalRevenue.toLocaleString("id-ID")}`, 14, selectedCategory !== "all" ? 58 : 51);
+
+    autoTable(doc, {
+      startY: selectedCategory !== "all" ? 65 : 58,
+      head: [["ID Transaksi", "Tanggal", "Jumlah Item", "Total"]],
+      body: transactions.map((t) => [
+        t.id,
+        t.date,
+        t.items,
+        `Rp ${t.total.toLocaleString("id-ID")}`,
+      ]),
+    });
+
+    const fileName = `Laporan_${startDate}_${endDate}${selectedCategory !== "all" ? `_${selectedCategory}` : ""}.pdf`;
+    doc.save(fileName);
+
+    toast({
+      title: "Berhasil",
+      description: "Laporan berhasil diexport ke PDF",
+    });
   };
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-foreground">Laporan Bulanan</h1>
+        <h1 className="text-3xl font-bold text-foreground">Laporan Penjualan</h1>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={handleDownload}>
+          <Button variant="outline" onClick={exportToExcel}>
             <Download className="w-4 h-4 mr-2" />
-            Download
+            Export Excel
           </Button>
-          <Button onClick={handlePrint}>
-            <Printer className="w-4 h-4 mr-2" />
-            Print
+          <Button onClick={exportToPDF}>
+            <FileText className="w-4 h-4 mr-2" />
+            Export PDF
           </Button>
         </div>
       </div>
 
       <Card>
         <CardHeader>
-          <div className="flex justify-between items-center">
-            <CardTitle>Pilih Periode</CardTitle>
-            <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-              <SelectTrigger className="w-48">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {generateMonthOptions().map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <CardTitle>Filter Laporan</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid md:grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="startDate">Tanggal Mulai</Label>
+              <Input
+                id="startDate"
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="endDate">Tanggal Akhir</Label>
+              <Input
+                id="endDate"
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="category">Kategori Produk</Label>
+              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                <SelectTrigger id="category">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Semua Kategori</SelectItem>
+                  {categories.map((cat) => (
+                    <SelectItem key={cat} value={cat}>
+                      {cat}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Ringkasan</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid md:grid-cols-3 gap-6 mb-6">
