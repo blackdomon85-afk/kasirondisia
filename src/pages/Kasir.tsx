@@ -386,86 +386,111 @@ const Kasir = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background p-6">
+    <div className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-background p-4 md:p-6">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold text-foreground">Kasir</h1>
-            <p className="text-muted-foreground">Sistem Point of Sale</p>
-          </div>
-          <Button variant="outline" onClick={signOut}>
-            <LogOut className="w-4 h-4 mr-2" />
-            Keluar
-          </Button>
-        </div>
+        <Card className="shadow-elegant">
+          <CardContent className="p-4 md:p-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div>
+                <h1 className="text-2xl md:text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent">
+                  Sistem Kasir
+                </h1>
+                <p className="text-muted-foreground text-sm md:text-base">Point of Sale</p>
+              </div>
+              <Button variant="outline" onClick={signOut} className="w-full sm:w-auto">
+                <LogOut className="w-4 h-4 mr-2" />
+                Keluar
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
           {/* Products Section */}
           <div className="lg:col-span-2 space-y-4">
             {/* Barcode Scanner */}
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex gap-2">
+            <Card className="shadow-elegant hover:shadow-hover transition-all duration-300">
+              <CardContent className="p-4 md:p-6">
+                <div className="flex flex-col sm:flex-row gap-3">
                   <div className="relative flex-1">
-                    <Scan className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
+                    <Scan className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-primary" />
                     <Input
                       placeholder="Scan barcode atau ketik manual..."
-                      className="pl-10"
+                      className="pl-11 h-11 text-base border-2 focus:border-primary transition-colors"
                       value={barcode}
                       onChange={(e) => setBarcode(e.target.value)}
                       onKeyPress={(e) => e.key === "Enter" && handleScanBarcode()}
                     />
                   </div>
-                  <Button onClick={handleScanBarcode}>Scan</Button>
+                  <Button 
+                    onClick={handleScanBarcode}
+                    className="h-11 px-6 bg-gradient-primary hover:opacity-90 transition-opacity"
+                  >
+                    <Scan className="w-4 h-4 mr-2" />
+                    Scan
+                  </Button>
                 </div>
               </CardContent>
             </Card>
 
             {/* Product Search */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Daftar Produk</CardTitle>
+            <Card className="shadow-elegant">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-xl">
+                  <Search className="w-5 h-5 text-primary" />
+                  Daftar Produk
+                </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="relative">
-                  <Search className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-primary" />
                   <Input
                     placeholder="Cari produk..."
-                    className="pl-10"
+                    className="pl-11 h-11 text-base border-2 focus:border-primary transition-colors"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                   />
                 </div>
 
-                <ScrollArea className="h-[400px]">
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                <ScrollArea className="h-[450px] md:h-[500px]">
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-3 md:gap-4 pr-4">
                     {filteredProducts.map((product) => (
                       <Card
                         key={product.id}
-                        className="cursor-pointer hover:shadow-lg transition-shadow"
+                        className="group cursor-pointer hover:shadow-hover transition-all duration-300 hover:scale-[1.02] border-2 hover:border-primary/50 overflow-hidden"
                         onClick={() => addToCart(product)}
                       >
-                        <CardContent className="p-3">
-                          {product.image_url && (
-                            <img
-                              src={product.image_url}
-                              alt={product.name}
-                              className="w-full h-24 object-cover rounded-md mb-2"
-                            />
-                          )}
-                          <h3 className="font-semibold text-sm mb-1 line-clamp-2">
-                            {product.name}
-                          </h3>
-                          <p className="text-primary font-bold text-sm">
-                            Rp {product.price.toLocaleString("id-ID")}
-                          </p>
-                          <Badge
-                            variant={product.stock < 50 ? "destructive" : "secondary"}
-                            className="text-xs mt-1"
-                          >
-                            Stok: {product.stock}
-                          </Badge>
+                        <CardContent className="p-0">
+                          <div className="aspect-square relative overflow-hidden bg-muted">
+                            {product.image_url ? (
+                              <img
+                                src={product.image_url}
+                                alt={product.name}
+                                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-muted to-muted/50">
+                                <ShoppingCart className="w-12 h-12 text-muted-foreground/30" />
+                              </div>
+                            )}
+                          </div>
+                          <div className="p-3 space-y-2">
+                            <h3 className="font-semibold text-sm leading-tight line-clamp-2 min-h-[2.5rem]">
+                              {product.name}
+                            </h3>
+                            <div className="space-y-1">
+                              <p className="text-primary font-bold text-base">
+                                Rp {product.price.toLocaleString("id-ID")}
+                              </p>
+                              <Badge
+                                variant={product.stock < 50 ? "destructive" : "secondary"}
+                                className="text-xs w-full justify-center"
+                              >
+                                Stok: {product.stock}
+                              </Badge>
+                            </div>
+                          </div>
                         </CardContent>
                       </Card>
                     ))}
@@ -477,55 +502,61 @@ const Kasir = () => {
 
           {/* Cart Section */}
           <div className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+            <Card className="shadow-elegant sticky top-4">
+              <CardHeader className="pb-3 bg-gradient-primary">
+                <CardTitle className="flex items-center gap-2 text-primary-foreground">
                   <ShoppingCart className="w-5 h-5" />
-                  Keranjang ({cart.length})
+                  Keranjang Belanja ({cart.length})
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <ScrollArea className="h-[300px]">
+              <CardContent className="p-4 space-y-4">
+                <ScrollArea className="h-[300px] md:h-[350px]">
                   {cart.length === 0 ? (
-                    <p className="text-center text-muted-foreground py-8">
-                      Keranjang kosong
-                    </p>
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                      <ShoppingCart className="w-16 h-16 text-muted-foreground/30 mb-3" />
+                      <p className="text-muted-foreground font-medium">
+                        Keranjang masih kosong
+                      </p>
+                      <p className="text-sm text-muted-foreground/70 mt-1">
+                        Tambahkan produk untuk memulai
+                      </p>
+                    </div>
                   ) : (
-                    <div className="space-y-3">
+                    <div className="space-y-3 pr-4">
                       {cart.map((item) => (
-                        <Card key={item.id}>
+                        <Card key={item.id} className="border-2 hover:border-primary/30 transition-colors">
                           <CardContent className="p-3">
                             <div className="flex justify-between items-start mb-2">
-                              <h4 className="font-semibold text-sm flex-1">
+                              <h4 className="font-semibold text-sm flex-1 leading-tight">
                                 {item.name}
                               </h4>
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-6 w-6"
+                                className="h-7 w-7 hover:bg-destructive/10 hover:text-destructive"
                                 onClick={() => removeFromCart(item.id)}
                               >
-                                <Trash2 className="w-3 h-3 text-destructive" />
+                                <Trash2 className="w-4 h-4" />
                               </Button>
                             </div>
-                            <div className="flex items-center gap-2 mb-2">
+                            <div className="flex items-center gap-2 mb-3">
                               <Button
                                 variant="outline"
                                 size="icon"
-                                className="h-7 w-7"
+                                className="h-8 w-8 border-2 hover:border-primary hover:bg-primary/5"
                                 onClick={() =>
                                   updateQuantity(item.id, item.quantity - 1)
                                 }
                               >
                                 -
                               </Button>
-                              <span className="text-sm font-medium w-8 text-center">
+                              <span className="text-base font-bold w-10 text-center bg-muted rounded px-2 py-1">
                                 {item.quantity}
                               </span>
                               <Button
                                 variant="outline"
                                 size="icon"
-                                className="h-7 w-7"
+                                className="h-8 w-8 border-2 hover:border-primary hover:bg-primary/5"
                                 onClick={() =>
                                   updateQuantity(item.id, item.quantity + 1)
                                 }
@@ -533,11 +564,11 @@ const Kasir = () => {
                                 +
                               </Button>
                             </div>
-                            <div className="flex justify-between text-sm">
+                            <div className="flex justify-between items-center text-sm">
                               <span className="text-muted-foreground">
                                 @ Rp {item.price.toLocaleString("id-ID")}
                               </span>
-                              <span className="font-semibold text-primary">
+                              <span className="font-bold text-primary text-base">
                                 Rp {item.subtotal.toLocaleString("id-ID")}
                               </span>
                             </div>
@@ -548,53 +579,68 @@ const Kasir = () => {
                   )}
                 </ScrollArea>
 
-                <Separator />
+                <Separator className="my-4" />
 
-                <div className="space-y-3">
-                  <div className="flex justify-between text-lg font-bold">
-                    <span>Total:</span>
-                    <span className="text-primary">
-                      Rp {totalAmount.toLocaleString("id-ID")}
-                    </span>
+                <div className="space-y-4">
+                  <div className="bg-gradient-to-br from-primary/5 to-accent/5 rounded-lg p-4 border-2 border-primary/20">
+                    <div className="flex justify-between items-center">
+                      <span className="text-base font-semibold">Total Belanja:</span>
+                      <span className="text-2xl font-bold text-primary">
+                        Rp {totalAmount.toLocaleString("id-ID")}
+                      </span>
+                    </div>
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Jumlah Bayar</label>
+                    <label className="text-sm font-semibold flex items-center gap-2">
+                      💰 Jumlah Bayar
+                    </label>
                     <Input
                       type="number"
-                      placeholder="0"
+                      placeholder="Masukkan jumlah bayar..."
                       value={paymentAmount}
                       onChange={(e) => setPaymentAmount(e.target.value)}
+                      className="h-12 text-lg font-semibold border-2 focus:border-primary"
                     />
                   </div>
 
                   {paymentAmount && (
-                    <div className="flex justify-between text-lg">
-                      <span>Kembalian:</span>
-                      <span
-                        className={
-                          changeAmount < 0
-                            ? "text-destructive font-bold"
-                            : "text-success font-bold"
-                        }
-                      >
-                        Rp {Math.max(0, changeAmount).toLocaleString("id-ID")}
-                      </span>
+                    <div className={`rounded-lg p-3 border-2 ${
+                      changeAmount < 0 
+                        ? "bg-destructive/5 border-destructive/30" 
+                        : "bg-success/5 border-success/30"
+                    }`}>
+                      <div className="flex justify-between items-center">
+                        <span className="font-semibold">Kembalian:</span>
+                        <span
+                          className={`text-xl font-bold ${
+                            changeAmount < 0
+                              ? "text-destructive"
+                              : "text-success"
+                          }`}
+                        >
+                          Rp {Math.max(0, changeAmount).toLocaleString("id-ID")}
+                        </span>
+                      </div>
                     </div>
                   )}
 
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 pt-2">
                     <Button
                       variant="outline"
-                      className="flex-1"
+                      className="flex-1 h-12 border-2 hover:border-destructive hover:bg-destructive/5 hover:text-destructive"
                       onClick={() => {
                         setCart([]);
                         setPaymentAmount("");
                       }}
                     >
-                      Reset
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Batal
                     </Button>
-                    <Button className="flex-1" onClick={handleCheckout}>
+                    <Button
+                      className="flex-1 h-12 bg-gradient-primary hover:opacity-90 transition-opacity text-base font-semibold shadow-hover"
+                      onClick={handleCheckout}
+                    >
                       <Printer className="w-4 h-4 mr-2" />
                       Bayar
                     </Button>
