@@ -224,6 +224,9 @@ const Kasir = () => {
         description: `Kembalian: Rp ${changeAmount.toLocaleString("id-ID")}`,
       });
 
+      // Print receipt
+      printReceipt(transaction, cart, totalAmount, payment, changeAmount);
+
       // Reset
       setCart([]);
       setPaymentAmount("");
@@ -242,6 +245,145 @@ const Kasir = () => {
       product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       product.barcode.includes(searchQuery)
   );
+
+  const printReceipt = (
+    transaction: any,
+    items: CartItem[],
+    total: number,
+    payment: number,
+    change: number
+  ) => {
+    const printWindow = window.open("", "", "width=300,height=600");
+    if (!printWindow) return;
+
+    const receiptHTML = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Nota Belanja</title>
+        <style>
+          body {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            padding: 10px;
+            width: 280px;
+          }
+          .header {
+            text-align: center;
+            border-bottom: 1px dashed #000;
+            padding-bottom: 10px;
+            margin-bottom: 10px;
+          }
+          .header h2 {
+            margin: 0;
+            font-size: 16px;
+          }
+          .items {
+            border-bottom: 1px dashed #000;
+            padding-bottom: 10px;
+            margin-bottom: 10px;
+          }
+          .item {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+          }
+          .item-name {
+            flex: 1;
+          }
+          .item-qty {
+            width: 30px;
+            text-align: center;
+          }
+          .item-price {
+            width: 80px;
+            text-align: right;
+          }
+          .total-section {
+            margin-top: 10px;
+          }
+          .total-line {
+            display: flex;
+            justify-content: space-between;
+            margin: 3px 0;
+          }
+          .total-line.grand {
+            font-weight: bold;
+            font-size: 14px;
+            border-top: 1px solid #000;
+            border-bottom: 1px solid #000;
+            padding: 5px 0;
+            margin: 5px 0;
+          }
+          .footer {
+            text-align: center;
+            margin-top: 15px;
+            border-top: 1px dashed #000;
+            padding-top: 10px;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h2>TOKO SAYA</h2>
+          <p style="margin: 5px 0;">Jl. Contoh No. 123</p>
+          <p style="margin: 5px 0;">Telp: 021-12345678</p>
+          <p style="margin: 5px 0;">${new Date().toLocaleString("id-ID")}</p>
+          <p style="margin: 5px 0;">No: ${transaction.id.substring(0, 8).toUpperCase()}</p>
+        </div>
+        
+        <div class="items">
+          ${items
+            .map(
+              (item) => `
+            <div class="item">
+              <span class="item-name">${item.name}</span>
+            </div>
+            <div class="item">
+              <span class="item-qty">${item.quantity} x</span>
+              <span class="item-price">Rp ${item.price.toLocaleString("id-ID")}</span>
+              <span class="item-price">Rp ${item.subtotal.toLocaleString("id-ID")}</span>
+            </div>
+          `
+            )
+            .join("")}
+        </div>
+        
+        <div class="total-section">
+          <div class="total-line grand">
+            <span>TOTAL:</span>
+            <span>Rp ${total.toLocaleString("id-ID")}</span>
+          </div>
+          <div class="total-line">
+            <span>Bayar:</span>
+            <span>Rp ${payment.toLocaleString("id-ID")}</span>
+          </div>
+          <div class="total-line">
+            <span>Kembalian:</span>
+            <span>Rp ${change.toLocaleString("id-ID")}</span>
+          </div>
+        </div>
+        
+        <div class="footer">
+          <p>Terima Kasih</p>
+          <p>Selamat Belanja Kembali</p>
+        </div>
+        
+        <script>
+          window.onload = function() {
+            window.print();
+            setTimeout(function() {
+              window.close();
+            }, 100);
+          }
+        </script>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(receiptHTML);
+    printWindow.document.close();
+  };
 
   return (
     <div className="min-h-screen bg-background p-6">

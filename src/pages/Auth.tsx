@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,9 +12,20 @@ import { ShoppingCart } from "lucide-react";
 
 const Auth = () => {
   const [loading, setLoading] = useState(false);
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, user, userRole } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+
+  // Redirect based on user role after login
+  useEffect(() => {
+    if (user && userRole) {
+      if (userRole === "admin") {
+        navigate("/admin");
+      } else if (userRole === "kasir") {
+        navigate("/kasir");
+      }
+    }
+  }, [user, userRole, navigate]);
 
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
