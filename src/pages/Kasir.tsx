@@ -14,7 +14,10 @@ interface Product {
   id: string;
   name: string;
   barcode: string;
+  purchase_price: number;
   price: number;
+  wholesale_price: number | null;
+  wholesale_threshold: number | null;
   stock: number;
   category: string;
   image_url: string | null;
@@ -75,6 +78,18 @@ const Kasir = () => {
     setBarcode("");
   };
 
+  const getApplicablePrice = (product: Product, quantity: number) => {
+    // Jika ada harga grosir dan quantity mencapai threshold
+    if (
+      product.wholesale_price && 
+      product.wholesale_threshold && 
+      quantity >= product.wholesale_threshold
+    ) {
+      return product.wholesale_price;
+    }
+    return product.price;
+  };
+
   const addToCart = (product: Product) => {
     const existingItem = cart.find((item) => item.id === product.id);
 
@@ -88,24 +103,30 @@ const Kasir = () => {
         return;
       }
 
+      const newQuantity = existingItem.quantity + 1;
+      const applicablePrice = getApplicablePrice(product, newQuantity);
+      
       setCart(
         cart.map((item) =>
           item.id === product.id
             ? {
                 ...item,
-                quantity: item.quantity + 1,
-                subtotal: (item.quantity + 1) * item.price,
+                quantity: newQuantity,
+                price: applicablePrice,
+                subtotal: newQuantity * applicablePrice,
               }
             : item
         )
       );
     } else {
+      const applicablePrice = getApplicablePrice(product, 1);
       setCart([
         ...cart,
         {
           ...product,
           quantity: 1,
-          subtotal: product.price,
+          price: applicablePrice,
+          subtotal: applicablePrice,
         },
       ]);
     }
@@ -141,13 +162,16 @@ const Kasir = () => {
       return;
     }
 
+    const applicablePrice = getApplicablePrice(product, newQuantity);
+
     setCart(
       cart.map((item) =>
         item.id === id
           ? {
               ...item,
               quantity: newQuantity,
-              subtotal: newQuantity * item.price,
+              price: applicablePrice,
+              subtotal: newQuantity * applicablePrice,
             }
           : item
       )

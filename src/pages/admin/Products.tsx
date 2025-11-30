@@ -29,7 +29,10 @@ interface Product {
   id: string;
   name: string;
   barcode: string;
+  purchase_price: number;
   price: number;
+  wholesale_price: number | null;
+  wholesale_threshold: number | null;
   stock: number;
   category: string;
   image_url: string | null;
@@ -156,7 +159,10 @@ const Products = () => {
                   <TableHead>Nama Produk</TableHead>
                   <TableHead>Barcode</TableHead>
                   <TableHead>Kategori</TableHead>
-                  <TableHead>Harga</TableHead>
+                  <TableHead>Harga Beli</TableHead>
+                  <TableHead>Harga Satuan</TableHead>
+                  <TableHead>Harga Grosir</TableHead>
+                  <TableHead>Lipatan</TableHead>
                   <TableHead>Stok</TableHead>
                   <TableHead className="text-right">Aksi</TableHead>
                 </TableRow>
@@ -171,8 +177,21 @@ const Products = () => {
                       {product.barcode}
                     </TableCell>
                     <TableCell>{product.category}</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      Rp {product.purchase_price.toLocaleString("id-ID")}
+                    </TableCell>
                     <TableCell className="font-semibold text-primary">
                       Rp {product.price.toLocaleString("id-ID")}
+                    </TableCell>
+                    <TableCell className="text-green-600 font-semibold">
+                      {product.wholesale_price 
+                        ? `Rp ${product.wholesale_price.toLocaleString("id-ID")}`
+                        : "-"}
+                    </TableCell>
+                    <TableCell>
+                      {product.wholesale_threshold 
+                        ? `${product.wholesale_threshold} pcs`
+                        : "-"}
                     </TableCell>
                     <TableCell>
                       <span
