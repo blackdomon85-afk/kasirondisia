@@ -50,7 +50,10 @@ const ProductForm = ({ open, onOpenChange, product, onSuccess }: ProductFormProp
   const [loading, setLoading] = useState(false);
   const [name, setName] = useState("");
   const [barcode, setBarcode] = useState("");
+  const [purchasePrice, setPurchasePrice] = useState("");
   const [price, setPrice] = useState("");
+  const [wholesalePrice, setWholesalePrice] = useState("");
+  const [wholesaleThreshold, setWholesaleThreshold] = useState("");
   const [stock, setStock] = useState("");
   const [category, setCategory] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -62,7 +65,10 @@ const ProductForm = ({ open, onOpenChange, product, onSuccess }: ProductFormProp
     if (product) {
       setName(product.name);
       setBarcode(product.barcode);
+      setPurchasePrice((product as any).purchase_price?.toString() || "");
       setPrice(product.price.toString());
+      setWholesalePrice((product as any).wholesale_price?.toString() || "");
+      setWholesaleThreshold((product as any).wholesale_threshold?.toString() || "");
       setStock(product.stock.toString());
       setCategory(product.category);
       setImagePreview(product.image_url);
@@ -113,7 +119,10 @@ const ProductForm = ({ open, onOpenChange, product, onSuccess }: ProductFormProp
       const productData = {
         name,
         barcode,
+        purchase_price: parseFloat(purchasePrice),
         price: parseFloat(price),
+        wholesale_price: wholesalePrice ? parseFloat(wholesalePrice) : null,
+        wholesale_threshold: wholesaleThreshold ? parseInt(wholesaleThreshold) : null,
         stock: parseInt(stock),
         category,
         image_url: imageUrl,
@@ -161,7 +170,10 @@ const ProductForm = ({ open, onOpenChange, product, onSuccess }: ProductFormProp
   const resetForm = () => {
     setName("");
     setBarcode("");
+    setPurchasePrice("");
     setPrice("");
+    setWholesalePrice("");
+    setWholesaleThreshold("");
     setStock("");
     setCategory("");
     setImageFile(null);
@@ -205,7 +217,21 @@ const ProductForm = ({ open, onOpenChange, product, onSuccess }: ProductFormProp
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="price">Harga *</Label>
+              <Label htmlFor="purchasePrice">Harga Beli per Pcs *</Label>
+              <Input
+                id="purchasePrice"
+                type="number"
+                placeholder="Contoh: 2500"
+                value={purchasePrice}
+                onChange={(e) => setPurchasePrice(e.target.value)}
+                required
+                min="0"
+                step="100"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="price">Harga Satuan per Pcs *</Label>
               <Input
                 id="price"
                 type="number"
@@ -215,6 +241,31 @@ const ProductForm = ({ open, onOpenChange, product, onSuccess }: ProductFormProp
                 required
                 min="0"
                 step="100"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="wholesalePrice">Harga Grosir per Pcs</Label>
+              <Input
+                id="wholesalePrice"
+                type="number"
+                placeholder="Contoh: 3000 (opsional)"
+                value={wholesalePrice}
+                onChange={(e) => setWholesalePrice(e.target.value)}
+                min="0"
+                step="100"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="wholesaleThreshold">Lipatan (Min. Pembelian Grosir)</Label>
+              <Input
+                id="wholesaleThreshold"
+                type="number"
+                placeholder="Contoh: 10 untuk minimal 10 pcs"
+                value={wholesaleThreshold}
+                onChange={(e) => setWholesaleThreshold(e.target.value)}
+                min="1"
               />
             </div>
 

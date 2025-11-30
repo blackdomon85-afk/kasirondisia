@@ -23,8 +23,11 @@ export type Database = {
           image_url: string | null
           name: string
           price: number
+          purchase_price: number
           stock: number
           updated_at: string
+          wholesale_price: number | null
+          wholesale_threshold: number | null
         }
         Insert: {
           barcode: string
@@ -34,8 +37,11 @@ export type Database = {
           image_url?: string | null
           name: string
           price: number
+          purchase_price?: number
           stock?: number
           updated_at?: string
+          wholesale_price?: number | null
+          wholesale_threshold?: number | null
         }
         Update: {
           barcode?: string
@@ -45,8 +51,11 @@ export type Database = {
           image_url?: string | null
           name?: string
           price?: number
+          purchase_price?: number
           stock?: number
           updated_at?: string
+          wholesale_price?: number | null
+          wholesale_threshold?: number | null
         }
         Relationships: []
       }
