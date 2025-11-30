@@ -9,6 +9,7 @@ import Kasir from "./pages/Kasir";
 import AdminLayout from "./pages/admin/AdminLayout";
 import Dashboard from "./pages/admin/Dashboard";
 import Products from "./pages/admin/Products";
+import ProductFormPage from "./pages/admin/ProductFormPage";
 import Reports from "./pages/admin/Reports";
 import NotFound from "./pages/NotFound";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -43,6 +44,7 @@ const App = () => (
             >
               <Route index element={<Dashboard />} />
               <Route path="products" element={<Products />} />
+              <Route path="products/form" element={<ProductFormPage />} />
               <Route path="reports" element={<Reports />} />
             </Route>
             <Route path="*" element={<NotFound />} />

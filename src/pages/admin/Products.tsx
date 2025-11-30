@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -23,7 +24,6 @@ import {
 import { Plus, Search, Edit, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import ProductForm from "@/components/ProductForm";
 
 interface Product {
   id: string;
@@ -39,10 +39,9 @@ interface Product {
 }
 
 const Products = () => {
+  const navigate = useNavigate();
   const [products, setProducts] = useState<Product[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [showForm, setShowForm] = useState(false);
-  const [editingProduct, setEditingProduct] = useState<Product | undefined>();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [productToDelete, setProductToDelete] = useState<string | null>(null);
   const { toast } = useToast();
@@ -75,9 +74,8 @@ const Products = () => {
       product.barcode.includes(searchQuery)
   );
 
-  const handleEdit = (product: Product) => {
-    setEditingProduct(product);
-    setShowForm(true);
+  const handleEdit = (productId: string) => {
+    navigate(`/admin/products/form?id=${productId}`);
   };
 
   const handleDelete = async () => {
@@ -112,30 +110,15 @@ const Products = () => {
     setDeleteDialogOpen(true);
   };
 
-  const handleFormSuccess = () => {
-    fetchProducts();
-    setEditingProduct(undefined);
-  };
-
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-foreground">Produk</h1>
-        <Button onClick={() => setShowForm(true)}>
+        <Button onClick={() => navigate("/admin/products/form")}>
           <Plus className="w-4 h-4 mr-2" />
           Tambah Produk
         </Button>
       </div>
-
-      <ProductForm
-        open={showForm}
-        onOpenChange={(open) => {
-          setShowForm(open);
-          if (!open) setEditingProduct(undefined);
-        }}
-        product={editingProduct}
-        onSuccess={handleFormSuccess}
-      />
 
       <Card>
         <CardHeader>
@@ -209,7 +192,7 @@ const Products = () => {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleEdit(product)}
+                          onClick={() => handleEdit(product.id)}
                         >
                           <Edit className="w-4 h-4" />
                         </Button>
