@@ -16,7 +16,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Download, FileText } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -34,29 +33,19 @@ interface Transaction {
 }
 
 const Reports = () => {
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+  const [period, setPeriod] = useState("month");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [categories, setCategories] = useState<string[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const { toast } = useToast();
 
   useEffect(() => {
-    // Set default dates to current month
-    const now = new Date();
-    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
-    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-    setStartDate(firstDay.toISOString().split("T")[0]);
-    setEndDate(lastDay.toISOString().split("T")[0]);
-    
     fetchCategories();
   }, []);
 
   useEffect(() => {
-    if (startDate && endDate) {
-      fetchTransactions();
-    }
-  }, [startDate, endDate, selectedCategory]);
+    fetchTransactions();
+  }, [period, selectedCategory]);
 
   const fetchCategories = async () => {
     const { data, error } = await supabase
@@ -69,11 +58,46 @@ const Reports = () => {
     }
   };
 
+  const getDateRange = () => {
+    const now = new Date();
+    let startDateTime = new Date();
+    let endDateTime = new Date();
+
+    switch (period) {
+      case "today":
+        startDateTime.setHours(0, 0, 0, 0);
+        endDateTime.setHours(23, 59, 59, 999);
+        break;
+      case "yesterday":
+        startDateTime.setDate(now.getDate() - 1);
+        startDateTime.setHours(0, 0, 0, 0);
+        endDateTime.setDate(now.getDate() - 1);
+        endDateTime.setHours(23, 59, 59, 999);
+        break;
+      case "week":
+        startDateTime.setDate(now.getDate() - 7);
+        startDateTime.setHours(0, 0, 0, 0);
+        endDateTime.setHours(23, 59, 59, 999);
+        break;
+      case "month":
+        startDateTime = new Date(now.getFullYear(), now.getMonth(), 1);
+        endDateTime = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+        break;
+      case "year":
+        startDateTime = new Date(now.getFullYear(), 0, 1);
+        endDateTime = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);
+        break;
+      case "all":
+        startDateTime = new Date(2000, 0, 1);
+        endDateTime.setHours(23, 59, 59, 999);
+        break;
+    }
+
+    return { startDateTime, endDateTime };
+  };
+
   const fetchTransactions = async () => {
-    const startDateTime = new Date(startDate);
-    startDateTime.setHours(0, 0, 0, 0);
-    const endDateTime = new Date(endDate);
-    endDateTime.setHours(23, 59, 59, 999);
+    const { startDateTime, endDateTime } = getDateRange();
 
     let query = supabase
       .from("transactions")
@@ -131,6 +155,18 @@ const Reports = () => {
   const totalRevenue = transactions.reduce((sum, t) => sum + t.total, 0);
   const totalItems = transactions.reduce((sum, t) => sum + t.items, 0);
 
+  const getPeriodLabel = () => {
+    switch (period) {
+      case "today": return "Hari Ini";
+      case "yesterday": return "Kemarin";
+      case "week": return "Minggu Ini";
+      case "month": return "Bulan Ini";
+      case "year": return "Tahun Ini";
+      case "all": return "Semua Data";
+      default: return period;
+    }
+  };
+
   const exportToExcel = () => {
     const worksheet = XLSX.utils.json_to_sheet(
       transactions.map((t) => ({
@@ -144,7 +180,7 @@ const Reports = () => {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Laporan");
 
-    const fileName = `Laporan_${startDate}_${endDate}${selectedCategory !== "all" ? `_${selectedCategory}` : ""}.xlsx`;
+    const fileName = `Laporan_${getPeriodLabel()}${selectedCategory !== "all" ? `_${selectedCategory}` : ""}.xlsx`;
     XLSX.writeFile(workbook, fileName);
 
     toast({
@@ -160,7 +196,7 @@ const Reports = () => {
     doc.text("Laporan Penjualan", 14, 20);
     
     doc.setFontSize(11);
-    doc.text(`Periode: ${startDate} - ${endDate}`, 14, 30);
+    doc.text(`Periode: ${getPeriodLabel()}`, 14, 30);
     if (selectedCategory !== "all") {
       doc.text(`Kategori: ${selectedCategory}`, 14, 37);
     }
@@ -180,7 +216,7 @@ const Reports = () => {
       ]),
     });
 
-    const fileName = `Laporan_${startDate}_${endDate}${selectedCategory !== "all" ? `_${selectedCategory}` : ""}.pdf`;
+    const fileName = `Laporan_${getPeriodLabel()}${selectedCategory !== "all" ? `_${selectedCategory}` : ""}.pdf`;
     doc.save(fileName);
 
     toast({
@@ -210,24 +246,22 @@ const Reports = () => {
           <CardTitle>Filter Laporan</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid md:grid-cols-3 gap-4">
+          <div className="grid md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="startDate">Tanggal Mulai</Label>
-              <Input
-                id="startDate"
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="endDate">Tanggal Akhir</Label>
-              <Input
-                id="endDate"
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-              />
+              <Label htmlFor="period">Periode</Label>
+              <Select value={period} onValueChange={setPeriod}>
+                <SelectTrigger id="period">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="today">Hari Ini</SelectItem>
+                  <SelectItem value="yesterday">Kemarin</SelectItem>
+                  <SelectItem value="week">Minggu Ini (7 Hari Terakhir)</SelectItem>
+                  <SelectItem value="month">Bulan Ini</SelectItem>
+                  <SelectItem value="year">Tahun Ini</SelectItem>
+                  <SelectItem value="all">Semua Data</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="category">Kategori Produk</Label>
