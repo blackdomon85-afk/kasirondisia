@@ -10,6 +10,8 @@ import AdminLayout from "./pages/admin/AdminLayout";
 import Dashboard from "./pages/admin/Dashboard";
 import Products from "./pages/admin/Products";
 import ProductFormPage from "./pages/admin/ProductFormPage";
+import ProductUnitMaster from "./pages/admin/ProductUnitMaster";
+import ProductGlobal from "./pages/admin/ProductGlobal";
 import Reports from "./pages/admin/Reports";
 import NotFound from "./pages/NotFound";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -45,6 +47,8 @@ const App = () => (
               <Route index element={<Dashboard />} />
               <Route path="products" element={<Products />} />
               <Route path="products/form" element={<ProductFormPage />} />
+              <Route path="product-unit-master" element={<ProductUnitMaster />} />
+              <Route path="product-global" element={<ProductGlobal />} />
               <Route path="reports" element={<Reports />} />
             </Route>
             <Route path="*" element={<NotFound />} />
