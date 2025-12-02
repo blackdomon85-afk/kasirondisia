@@ -5,7 +5,14 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Search, Scan, ShoppingCart, Trash2, Printer, LogOut } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Search, Scan, ShoppingCart, Trash2, Check, X, LogOut } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
@@ -34,6 +41,9 @@ const Kasir = () => {
   const [barcode, setBarcode] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [paymentAmount, setPaymentAmount] = useState("");
+  const [showReceiptDialog, setShowReceiptDialog] = useState(false);
+  const [pendingPayment, setPendingPayment] = useState<number>(0);
+  const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
   const { signOut, user } = useAuth();
 
@@ -200,7 +210,7 @@ const Kasir = () => {
     setPaymentAmount(formatted);
   };
 
-  const handleCheckout = async () => {
+  const handleCheckout = () => {
     const payment = parseFormattedAmount(paymentAmount);
     
     if (!payment || payment < totalAmount) {
@@ -221,15 +231,43 @@ const Kasir = () => {
       return;
     }
 
+    // Show receipt confirmation dialog
+    setPendingPayment(payment);
+    setShowReceiptDialog(true);
+  };
+
+  const confirmTransaction = async () => {
+    setIsProcessing(true);
+    
     try {
+      // Get fresh stock data from database
+      const productIds = cart.map(item => item.id);
+      const { data: freshProducts, error: fetchError } = await supabase
+        .from("products")
+        .select("id, stock")
+        .in("id", productIds);
+      
+      if (fetchError) throw fetchError;
+      
+      // Create stock map for easy lookup
+      const stockMap = new Map(freshProducts?.map(p => [p.id, p.stock]) || []);
+      
+      // Verify stock availability
+      for (const item of cart) {
+        const currentStock = stockMap.get(item.id) || 0;
+        if (currentStock < item.quantity) {
+          throw new Error(`Stok ${item.name} tidak mencukupi (tersedia: ${currentStock})`);
+        }
+      }
+
       // Create transaction
       const { data: transaction, error: transactionError } = await supabase
         .from("transactions")
         .insert({
           cashier_id: user?.id,
           total_amount: totalAmount,
-          payment_amount: payment,
-          change_amount: changeAmount,
+          payment_amount: pendingPayment,
+          change_amount: pendingPayment - totalAmount,
         })
         .select()
         .single();
@@ -252,11 +290,14 @@ const Kasir = () => {
 
       if (itemsError) throw itemsError;
 
-      // Update stock
+      // Update stock using fresh data from database
       for (const item of cart) {
+        const currentStock = stockMap.get(item.id) || 0;
+        const newStock = currentStock - item.quantity;
+        
         const { error: stockError } = await supabase
           .from("products")
-          .update({ stock: item.stock - item.quantity })
+          .update({ stock: newStock })
           .eq("id", item.id);
 
         if (stockError) throw stockError;
@@ -264,23 +305,29 @@ const Kasir = () => {
 
       toast({
         title: "Transaksi Berhasil",
-        description: `Kembalian: Rp ${changeAmount.toLocaleString("id-ID")}`,
+        description: `Kembalian: Rp ${(pendingPayment - totalAmount).toLocaleString("id-ID")}`,
       });
 
-      // Print receipt
-      printReceipt(transaction, cart, totalAmount, payment, changeAmount);
-
       // Reset
+      setShowReceiptDialog(false);
       setCart([]);
       setPaymentAmount("");
-      fetchProducts();
+      setPendingPayment(0);
+      await fetchProducts();
     } catch (error: any) {
       toast({
         title: "Transaksi Gagal",
         description: error.message,
         variant: "destructive",
       });
+    } finally {
+      setIsProcessing(false);
     }
+  };
+
+  const cancelTransaction = () => {
+    setShowReceiptDialog(false);
+    setPendingPayment(0);
   };
 
   const filteredProducts = products.filter(
@@ -288,145 +335,6 @@ const Kasir = () => {
       product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       product.barcode.includes(searchQuery)
   );
-
-  const printReceipt = (
-    transaction: any,
-    items: CartItem[],
-    total: number,
-    payment: number,
-    change: number
-  ) => {
-    const printWindow = window.open("", "", "width=300,height=600");
-    if (!printWindow) return;
-
-    const receiptHTML = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Nota Belanja</title>
-        <style>
-          body {
-            font-family: 'Courier New', monospace;
-            font-size: 12px;
-            padding: 10px;
-            width: 280px;
-          }
-          .header {
-            text-align: center;
-            border-bottom: 1px dashed #000;
-            padding-bottom: 10px;
-            margin-bottom: 10px;
-          }
-          .header h2 {
-            margin: 0;
-            font-size: 16px;
-          }
-          .items {
-            border-bottom: 1px dashed #000;
-            padding-bottom: 10px;
-            margin-bottom: 10px;
-          }
-          .item {
-            display: flex;
-            justify-content: space-between;
-            margin: 5px 0;
-          }
-          .item-name {
-            flex: 1;
-          }
-          .item-qty {
-            width: 30px;
-            text-align: center;
-          }
-          .item-price {
-            width: 80px;
-            text-align: right;
-          }
-          .total-section {
-            margin-top: 10px;
-          }
-          .total-line {
-            display: flex;
-            justify-content: space-between;
-            margin: 3px 0;
-          }
-          .total-line.grand {
-            font-weight: bold;
-            font-size: 14px;
-            border-top: 1px solid #000;
-            border-bottom: 1px solid #000;
-            padding: 5px 0;
-            margin: 5px 0;
-          }
-          .footer {
-            text-align: center;
-            margin-top: 15px;
-            border-top: 1px dashed #000;
-            padding-top: 10px;
-          }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <h2>TOKO SAYA</h2>
-          <p style="margin: 5px 0;">Jl. Contoh No. 123</p>
-          <p style="margin: 5px 0;">Telp: 021-12345678</p>
-          <p style="margin: 5px 0;">${new Date().toLocaleString("id-ID")}</p>
-          <p style="margin: 5px 0;">No: ${transaction.id.substring(0, 8).toUpperCase()}</p>
-        </div>
-        
-        <div class="items">
-          ${items
-            .map(
-              (item) => `
-            <div class="item">
-              <span class="item-name">${item.name}</span>
-            </div>
-            <div class="item">
-              <span class="item-qty">${item.quantity} x</span>
-              <span class="item-price">Rp ${item.price.toLocaleString("id-ID")}</span>
-              <span class="item-price">Rp ${item.subtotal.toLocaleString("id-ID")}</span>
-            </div>
-          `
-            )
-            .join("")}
-        </div>
-        
-        <div class="total-section">
-          <div class="total-line grand">
-            <span>TOTAL:</span>
-            <span>Rp ${total.toLocaleString("id-ID")}</span>
-          </div>
-          <div class="total-line">
-            <span>Bayar:</span>
-            <span>Rp ${payment.toLocaleString("id-ID")}</span>
-          </div>
-          <div class="total-line">
-            <span>Kembalian:</span>
-            <span>Rp ${change.toLocaleString("id-ID")}</span>
-          </div>
-        </div>
-        
-        <div class="footer">
-          <p>Terima Kasih</p>
-          <p>Selamat Belanja Kembali</p>
-        </div>
-        
-        <script>
-          window.onload = function() {
-            window.print();
-            setTimeout(function() {
-              window.close();
-            }, 100);
-          }
-        </script>
-      </body>
-      </html>
-    `;
-
-    printWindow.document.write(receiptHTML);
-    printWindow.document.close();
-  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-background p-4 md:p-6">
@@ -690,7 +598,7 @@ const Kasir = () => {
                       className="flex-1 h-12 bg-gradient-primary hover:opacity-90 transition-opacity text-base font-semibold shadow-hover"
                       onClick={handleCheckout}
                     >
-                      <Printer className="w-4 h-4 mr-2" />
+                      <Check className="w-4 h-4 mr-2" />
                       Bayar
                     </Button>
                   </div>
@@ -699,6 +607,88 @@ const Kasir = () => {
             </Card>
           </div>
         </div>
+
+        {/* Receipt Confirmation Dialog */}
+        <Dialog open={showReceiptDialog} onOpenChange={setShowReceiptDialog}>
+          <DialogContent className="max-w-md max-h-[90vh] overflow-auto">
+            <DialogHeader>
+              <DialogTitle className="text-center text-xl font-bold">
+                Konfirmasi Pembayaran
+              </DialogTitle>
+              <DialogDescription className="text-center text-muted-foreground">
+                Periksa detail transaksi sebelum konfirmasi
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4 font-mono text-sm">
+              {/* Store Header */}
+              <div className="text-center border-b border-dashed pb-3">
+                <h3 className="font-bold text-lg">TOKO SAYA</h3>
+                <p className="text-muted-foreground text-xs">Jl. Contoh No. 123</p>
+                <p className="text-muted-foreground text-xs">Telp: 021-12345678</p>
+                <p className="text-muted-foreground text-xs mt-1">
+                  {new Date().toLocaleString("id-ID")}
+                </p>
+              </div>
+              
+              {/* Items */}
+              <div className="border-b border-dashed pb-3 space-y-2">
+                {cart.map((item) => (
+                  <div key={item.id} className="space-y-1">
+                    <div className="font-medium">{item.name}</div>
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>{item.quantity} x Rp {item.price.toLocaleString("id-ID")}</span>
+                      <span>Rp {item.subtotal.toLocaleString("id-ID")}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              {/* Totals */}
+              <div className="space-y-2">
+                <div className="flex justify-between font-bold text-base border-y py-2">
+                  <span>TOTAL</span>
+                  <span>Rp {totalAmount.toLocaleString("id-ID")}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Bayar</span>
+                  <span>Rp {pendingPayment.toLocaleString("id-ID")}</span>
+                </div>
+                <div className="flex justify-between text-primary font-semibold">
+                  <span>Kembalian</span>
+                  <span>Rp {(pendingPayment - totalAmount).toLocaleString("id-ID")}</span>
+                </div>
+              </div>
+              
+              {/* Footer */}
+              <div className="text-center border-t border-dashed pt-3 text-muted-foreground">
+                <p>Terima Kasih</p>
+                <p>Selamat Belanja Kembali</p>
+              </div>
+            </div>
+            
+            {/* Action Buttons */}
+            <div className="flex gap-3 mt-4">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={cancelTransaction}
+                disabled={isProcessing}
+              >
+                <X className="w-4 h-4 mr-2" />
+                Batal
+              </Button>
+              <Button
+                className="flex-1 bg-gradient-primary"
+                onClick={confirmTransaction}
+                disabled={isProcessing}
+              >
+                <Check className="w-4 h-4 mr-2" />
+                {isProcessing ? "Memproses..." : "Konfirmasi"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
