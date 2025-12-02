@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
@@ -17,46 +16,26 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Label } from "@/components/ui/label";
-import { Download, FileText } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import * as XLSX from "xlsx";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
 
-interface Transaction {
-  id: string;
+interface ReportItem {
   date: string;
-  items: number;
-  total: number;
-  category?: string;
+  productName: string;
+  quantity: number;
+  purchasePrice: number;
+  sellingPrice: number;
+  profit: number;
 }
 
 const Reports = () => {
   const [period, setPeriod] = useState("month");
-  const [selectedCategory, setSelectedCategory] = useState("all");
-  const [categories, setCategories] = useState<string[]>([]);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [reportItems, setReportItems] = useState<ReportItem[]>([]);
   const { toast } = useToast();
 
   useEffect(() => {
-    fetchCategories();
-  }, []);
-
-  useEffect(() => {
-    fetchTransactions();
-  }, [period, selectedCategory]);
-
-  const fetchCategories = async () => {
-    const { data, error } = await supabase
-      .from("products")
-      .select("category");
-
-    if (!error && data) {
-      const uniqueCategories = [...new Set(data.map((p) => p.category))];
-      setCategories(uniqueCategories);
-    }
-  };
+    fetchReportData();
+  }, [period]);
 
   const getDateRange = () => {
     const now = new Date();
@@ -96,22 +75,23 @@ const Reports = () => {
     return { startDateTime, endDateTime };
   };
 
-  const fetchTransactions = async () => {
+  const fetchReportData = async () => {
     const { startDateTime, endDateTime } = getDateRange();
 
-    let query = supabase
-      .from("transactions")
+    // Fetch transaction items with transaction date
+    const { data: transactionItems, error } = await supabase
+      .from("transaction_items")
       .select(`
-        id,
-        created_at,
-        total_amount,
-        transaction_items(product_name, quantity, subtotal)
+        product_name,
+        product_price,
+        quantity,
+        subtotal,
+        product_id,
+        transactions!inner(created_at)
       `)
-      .gte("created_at", startDateTime.toISOString())
-      .lte("created_at", endDateTime.toISOString())
-      .order("created_at", { ascending: false });
-
-    const { data: transactionData, error } = await query;
+      .gte("transactions.created_at", startDateTime.toISOString())
+      .lte("transactions.created_at", endDateTime.toISOString())
+      .order("created_at", { foreignTable: "transactions", ascending: false });
 
     if (error) {
       toast({
@@ -122,38 +102,38 @@ const Reports = () => {
       return;
     }
 
-    // Filter by category if selected
-    let filteredTransactions = transactionData || [];
-    
-    if (selectedCategory !== "all") {
-      // Get products in selected category
-      const { data: categoryProducts } = await supabase
-        .from("products")
-        .select("name")
-        .eq("category", selectedCategory);
+    // Fetch products to get purchase prices
+    const { data: products } = await supabase
+      .from("products")
+      .select("id, purchase_price");
 
-      const productNames = new Set(categoryProducts?.map(p => p.name) || []);
-      
-      // Filter transactions that have items from selected category
-      filteredTransactions = filteredTransactions.filter(t => 
-        t.transaction_items.some((item: any) => productNames.has(item.product_name))
-      );
-    }
+    const productPriceMap = new Map(
+      products?.map((p) => [p.id, p.purchase_price]) || []
+    );
 
-    const transactionsWithItems = filteredTransactions.map((t) => {
+    const items: ReportItem[] = (transactionItems || []).map((item: any) => {
+      const purchasePrice = item.product_id 
+        ? (productPriceMap.get(item.product_id) || 0) 
+        : 0;
+      const sellingPrice = item.product_price;
+      const profit = (sellingPrice - purchasePrice) * item.quantity;
+
       return {
-        id: t.id.substring(0, 8).toUpperCase(),
-        date: new Date(t.created_at).toLocaleDateString("id-ID"),
-        items: t.transaction_items.length,
-        total: parseFloat(t.total_amount.toString()),
+        date: new Date(item.transactions.created_at).toLocaleDateString("id-ID"),
+        productName: item.product_name,
+        quantity: item.quantity,
+        purchasePrice,
+        sellingPrice,
+        profit,
       };
     });
 
-    setTransactions(transactionsWithItems);
+    setReportItems(items);
   };
 
-  const totalRevenue = transactions.reduce((sum, t) => sum + t.total, 0);
-  const totalItems = transactions.reduce((sum, t) => sum + t.items, 0);
+  const totalQuantity = reportItems.reduce((sum, item) => sum + item.quantity, 0);
+  const totalProfit = reportItems.reduce((sum, item) => sum + item.profit, 0);
+  const totalRevenue = reportItems.reduce((sum, item) => sum + (item.sellingPrice * item.quantity), 0);
 
   const getPeriodLabel = () => {
     switch (period) {
@@ -167,78 +147,10 @@ const Reports = () => {
     }
   };
 
-  const exportToExcel = () => {
-    const worksheet = XLSX.utils.json_to_sheet(
-      transactions.map((t) => ({
-        "ID Transaksi": t.id,
-        Tanggal: t.date,
-        "Jumlah Item": t.items,
-        Total: t.total,
-      }))
-    );
-
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Laporan");
-
-    const fileName = `Laporan_${getPeriodLabel()}${selectedCategory !== "all" ? `_${selectedCategory}` : ""}.xlsx`;
-    XLSX.writeFile(workbook, fileName);
-
-    toast({
-      title: "Berhasil",
-      description: "Laporan berhasil diexport ke Excel",
-    });
-  };
-
-  const exportToPDF = () => {
-    const doc = new jsPDF();
-    
-    doc.setFontSize(18);
-    doc.text("Laporan Penjualan", 14, 20);
-    
-    doc.setFontSize(11);
-    doc.text(`Periode: ${getPeriodLabel()}`, 14, 30);
-    if (selectedCategory !== "all") {
-      doc.text(`Kategori: ${selectedCategory}`, 14, 37);
-    }
-    
-    doc.text(`Total Transaksi: ${transactions.length}`, 14, selectedCategory !== "all" ? 44 : 37);
-    doc.text(`Total Item: ${totalItems}`, 14, selectedCategory !== "all" ? 51 : 44);
-    doc.text(`Total Pendapatan: Rp ${totalRevenue.toLocaleString("id-ID")}`, 14, selectedCategory !== "all" ? 58 : 51);
-
-    autoTable(doc, {
-      startY: selectedCategory !== "all" ? 65 : 58,
-      head: [["ID Transaksi", "Tanggal", "Jumlah Item", "Total"]],
-      body: transactions.map((t) => [
-        t.id,
-        t.date,
-        t.items,
-        `Rp ${t.total.toLocaleString("id-ID")}`,
-      ]),
-    });
-
-    const fileName = `Laporan_${getPeriodLabel()}${selectedCategory !== "all" ? `_${selectedCategory}` : ""}.pdf`;
-    doc.save(fileName);
-
-    toast({
-      title: "Berhasil",
-      description: "Laporan berhasil diexport ke PDF",
-    });
-  };
-
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-foreground">Laporan Penjualan</h1>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={exportToExcel}>
-            <Download className="w-4 h-4 mr-2" />
-            Export Excel
-          </Button>
-          <Button onClick={exportToPDF}>
-            <FileText className="w-4 h-4 mr-2" />
-            Export PDF
-          </Button>
-        </div>
       </div>
 
       <Card>
@@ -246,46 +158,28 @@ const Reports = () => {
           <CardTitle>Filter Laporan</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="period">Periode</Label>
-              <Select value={period} onValueChange={setPeriod}>
-                <SelectTrigger id="period">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="today">Hari Ini</SelectItem>
-                  <SelectItem value="yesterday">Kemarin</SelectItem>
-                  <SelectItem value="week">Minggu Ini (7 Hari Terakhir)</SelectItem>
-                  <SelectItem value="month">Bulan Ini</SelectItem>
-                  <SelectItem value="year">Tahun Ini</SelectItem>
-                  <SelectItem value="all">Semua Data</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="category">Kategori Produk</Label>
-              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                <SelectTrigger id="category">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Semua Kategori</SelectItem>
-                  {categories.map((cat) => (
-                    <SelectItem key={cat} value={cat}>
-                      {cat}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="max-w-xs">
+            <Label htmlFor="period">Periode</Label>
+            <Select value={period} onValueChange={setPeriod}>
+              <SelectTrigger id="period">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="today">Hari Ini</SelectItem>
+                <SelectItem value="yesterday">Kemarin</SelectItem>
+                <SelectItem value="week">Minggu Ini (7 Hari Terakhir)</SelectItem>
+                <SelectItem value="month">Bulan Ini</SelectItem>
+                <SelectItem value="year">Tahun Ini</SelectItem>
+                <SelectItem value="all">Semua Data</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>Ringkasan</CardTitle>
+          <CardTitle>Ringkasan - {getPeriodLabel()}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid md:grid-cols-3 gap-6 mb-6">
@@ -294,7 +188,7 @@ const Reports = () => {
                 <p className="text-sm text-muted-foreground mb-2">
                   Total Item Terjual
                 </p>
-                <p className="text-3xl font-bold text-foreground">{totalItems}</p>
+                <p className="text-3xl font-bold text-foreground">{totalQuantity}</p>
                 <p className="text-xs text-muted-foreground mt-1">unit</p>
               </CardContent>
             </Card>
@@ -314,12 +208,12 @@ const Reports = () => {
             <Card>
               <CardContent className="pt-6">
                 <p className="text-sm text-muted-foreground mb-2">
-                  Total Transaksi
+                  Total Laba
                 </p>
                 <p className="text-3xl font-bold text-primary">
-                  {transactions.length}
+                  Rp {totalProfit.toLocaleString("id-ID")}
                 </p>
-                <p className="text-xs text-muted-foreground mt-1">transaksi</p>
+                <p className="text-xs text-muted-foreground mt-1">keuntungan bersih</p>
               </CardContent>
             </Card>
           </div>
@@ -328,27 +222,35 @@ const Reports = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>ID Transaksi</TableHead>
                   <TableHead>Tanggal</TableHead>
-                  <TableHead>Jumlah Item</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
+                  <TableHead>Produk</TableHead>
+                  <TableHead className="text-center">Qty</TableHead>
+                  <TableHead className="text-right">Harga Beli</TableHead>
+                  <TableHead className="text-right">Harga Jual</TableHead>
+                  <TableHead className="text-right">Laba</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {transactions.length === 0 ? (
+                {reportItems.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center text-muted-foreground">
+                    <TableCell colSpan={6} className="text-center text-muted-foreground">
                       Tidak ada transaksi pada periode ini
                     </TableCell>
                   </TableRow>
                 ) : (
-                  transactions.map((transaction) => (
-                    <TableRow key={transaction.id}>
-                      <TableCell className="font-medium">{transaction.id}</TableCell>
-                      <TableCell>{transaction.date}</TableCell>
-                      <TableCell>{transaction.items} item</TableCell>
-                      <TableCell className="text-right font-semibold text-primary">
-                        Rp {transaction.total.toLocaleString("id-ID")}
+                  reportItems.map((item, index) => (
+                    <TableRow key={index}>
+                      <TableCell>{item.date}</TableCell>
+                      <TableCell className="font-medium">{item.productName}</TableCell>
+                      <TableCell className="text-center">{item.quantity}</TableCell>
+                      <TableCell className="text-right">
+                        Rp {item.purchasePrice.toLocaleString("id-ID")}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        Rp {item.sellingPrice.toLocaleString("id-ID")}
+                      </TableCell>
+                      <TableCell className={`text-right font-semibold ${item.profit >= 0 ? 'text-success' : 'text-destructive'}`}>
+                        Rp {item.profit.toLocaleString("id-ID")}
                       </TableCell>
                     </TableRow>
                   ))
