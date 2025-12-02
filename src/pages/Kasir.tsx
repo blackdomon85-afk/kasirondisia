@@ -179,10 +179,29 @@ const Kasir = () => {
   };
 
   const totalAmount = cart.reduce((sum, item) => sum + item.subtotal, 0);
-  const changeAmount = paymentAmount ? parseFloat(paymentAmount) - totalAmount : 0;
+  
+  // Parse payment amount from formatted string
+  const parseFormattedAmount = (value: string) => {
+    return parseFloat(value.replace(/\./g, "")) || 0;
+  };
+  
+  const changeAmount = paymentAmount ? parseFormattedAmount(paymentAmount) - totalAmount : 0;
+
+  // Format number to Indonesian currency format (with dots as thousand separator)
+  const formatCurrency = (value: string) => {
+    // Remove non-digit characters
+    const numericValue = value.replace(/\D/g, "");
+    // Add thousand separators
+    return numericValue.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  };
+
+  const handlePaymentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formatted = formatCurrency(e.target.value);
+    setPaymentAmount(formatted);
+  };
 
   const handleCheckout = async () => {
-    const payment = parseFloat(paymentAmount);
+    const payment = parseFormattedAmount(paymentAmount);
     
     if (!payment || payment < totalAmount) {
       toast({
@@ -619,13 +638,19 @@ const Kasir = () => {
                     <label className="text-sm font-semibold flex items-center gap-2">
                       💰 Jumlah Bayar
                     </label>
-                    <Input
-                      type="number"
-                      placeholder="Masukkan jumlah bayar..."
-                      value={paymentAmount}
-                      onChange={(e) => setPaymentAmount(e.target.value)}
-                      className="h-12 text-lg font-semibold border-2 focus:border-primary"
-                    />
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold">
+                        Rp
+                      </span>
+                      <Input
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="0"
+                        value={paymentAmount}
+                        onChange={handlePaymentChange}
+                        className="h-12 text-lg font-semibold border-2 focus:border-primary pl-10"
+                      />
+                    </div>
                   </div>
 
                   {paymentAmount && (

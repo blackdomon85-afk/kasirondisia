@@ -26,7 +26,7 @@ const items = [
 
 export function AppSidebar() {
   const { signOut } = useAuth();
-  const { state } = useSidebar();
+  const { state, setOpenMobile, isMobile } = useSidebar();
   const location = useLocation();
   const currentPath = location.pathname;
 
@@ -38,6 +38,12 @@ export function AppSidebar() {
   };
 
   const collapsed = state === "collapsed";
+
+  const handleMenuClick = () => {
+    if (isMobile) {
+      setOpenMobile(false);
+    }
+  };
 
   return (
     <Sidebar className={collapsed ? "w-16" : "w-64"} collapsible="icon">
@@ -55,6 +61,7 @@ export function AppSidebar() {
                       to={item.url}
                       end={item.url === "/admin"}
                       className="hover:bg-sidebar-accent"
+                      onClick={handleMenuClick}
                     >
                       <item.icon className="w-4 h-4" />
                       {!collapsed && <span>{item.title}</span>}
@@ -74,7 +81,10 @@ export function AppSidebar() {
                   <Button
                     variant="ghost"
                     className="w-full justify-start"
-                    onClick={signOut}
+                    onClick={() => {
+                      handleMenuClick();
+                      signOut();
+                    }}
                   >
                     <LogOut className="w-4 h-4" />
                     {!collapsed && <span>Keluar</span>}
