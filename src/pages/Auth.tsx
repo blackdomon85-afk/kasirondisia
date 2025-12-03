@@ -6,11 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
-<<<<<<< HEAD
 import logoKasir from "@/assets/tokohku.jpeg";
-=======
-import logoKasir from "@/assets/logo-kasir.png";
->>>>>>> c37c15a82851723797f488514aa3e6f16c4ff59e
 
 const Auth = () => {
   const [loading, setLoading] = useState(false);
