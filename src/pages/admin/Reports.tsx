@@ -133,7 +133,7 @@ const Reports = () => {
 
   const totalQuantity = reportItems.reduce((sum, item) => sum + item.quantity, 0);
   const totalProfit = reportItems.reduce((sum, item) => sum + item.profit, 0);
-  const totalRevenue = reportItems.reduce((sum, item) => sum + (item.sellingPrice * item.quantity), 0);
+  const totalRevenue = reportItems.reduce((sum, item) => sum + (item.purchase_price * item.quantity), 0);
 
   const getPeriodLabel = () => {
     switch (period) {
@@ -196,7 +196,7 @@ const Reports = () => {
             <Card>
               <CardContent className="pt-6">
                 <p className="text-sm text-muted-foreground mb-2">
-                  Total Pendapatan
+                  Total Uang Kolaan
                 </p>
                 <p className="text-3xl font-bold text-success">
                   Rp {totalRevenue.toLocaleString("id-ID")}
