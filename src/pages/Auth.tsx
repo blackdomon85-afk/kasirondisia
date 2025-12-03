@@ -58,7 +58,7 @@ const Auth = () => {
             <img 
               src={logoKasir} 
               alt="Logo Sistem Kasir" 
-              className="w-24 h-24 object-contain"
+              className="h-32 object-contain"
             />
           </div>
           <CardTitle className="text-2xl font-bold">Sistem Kasir</CardTitle>
