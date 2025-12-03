@@ -133,7 +133,7 @@ const Reports = () => {
 
   const totalQuantity = reportItems.reduce((sum, item) => sum + item.quantity, 0);
   const totalProfit = reportItems.reduce((sum, item) => sum + item.profit, 0);
-  const totalRevenue = reportItems.reduce((sum, item) => sum + (item.purchase_price * item.quantity), 0);
+  const totalRevenue = reportItems.reduce((sum, item) => sum + (item.purchasePrice * item.quantity), 0);
 
   const getPeriodLabel = () => {
     switch (period) {
