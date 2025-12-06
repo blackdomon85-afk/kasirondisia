@@ -15,11 +15,26 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
 interface ReportItem {
+  id: string;
+  transactionId: string;
   date: string;
   productName: string;
   quantity: number;
@@ -31,6 +46,8 @@ interface ReportItem {
 const Reports = () => {
   const [period, setPeriod] = useState("month");
   const [reportItems, setReportItems] = useState<ReportItem[]>([]);
+  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -82,11 +99,13 @@ const Reports = () => {
     const { data: transactionItems, error } = await supabase
       .from("transaction_items")
       .select(`
+        id,
         product_name,
         product_price,
         quantity,
         subtotal,
         product_id,
+        transaction_id,
         transactions!inner(created_at)
       `)
       .gte("transactions.created_at", startDateTime.toISOString())
@@ -119,6 +138,8 @@ const Reports = () => {
       const profit = (sellingPrice - purchasePrice) * item.quantity;
 
       return {
+        id: item.id,
+        transactionId: item.transaction_id,
         date: new Date(item.transactions.created_at).toLocaleDateString("id-ID"),
         productName: item.product_name,
         quantity: item.quantity,
@@ -129,6 +150,73 @@ const Reports = () => {
     });
 
     setReportItems(items);
+    setSelectedItems(new Set());
+  };
+
+  const toggleSelectItem = (id: string) => {
+    const newSelected = new Set(selectedItems);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedItems(newSelected);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedItems.size === reportItems.length) {
+      setSelectedItems(new Set());
+    } else {
+      setSelectedItems(new Set(reportItems.map(item => item.id)));
+    }
+  };
+
+  const handleDeleteSelected = async () => {
+    try {
+      // Get unique transaction IDs from selected items
+      const transactionIds = new Set(
+        reportItems
+          .filter(item => selectedItems.has(item.id))
+          .map(item => item.transactionId)
+      );
+
+      // Delete transaction items first
+      const { error: itemsError } = await supabase
+        .from("transaction_items")
+        .delete()
+        .in("id", Array.from(selectedItems));
+
+      if (itemsError) throw itemsError;
+
+      // Check for empty transactions and delete them
+      for (const txId of transactionIds) {
+        const { data: remainingItems } = await supabase
+          .from("transaction_items")
+          .select("id")
+          .eq("transaction_id", txId);
+
+        if (!remainingItems || remainingItems.length === 0) {
+          await supabase
+            .from("transactions")
+            .delete()
+            .eq("id", txId);
+        }
+      }
+
+      toast({
+        title: "Berhasil",
+        description: `${selectedItems.size} item laporan berhasil dihapus`,
+      });
+
+      setShowDeleteDialog(false);
+      await fetchReportData();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
   };
 
   const totalQuantity = reportItems.reduce((sum, item) => sum + item.quantity, 0);
@@ -151,6 +239,15 @@ const Reports = () => {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-foreground">Laporan Penjualan</h1>
+        {selectedItems.size > 0 && (
+          <Button 
+            variant="destructive" 
+            onClick={() => setShowDeleteDialog(true)}
+          >
+            <Trash2 className="w-4 h-4 mr-2" />
+            Hapus ({selectedItems.size})
+          </Button>
+        )}
       </div>
 
       <Card>
@@ -222,6 +319,12 @@ const Reports = () => {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-12">
+                    <Checkbox
+                      checked={reportItems.length > 0 && selectedItems.size === reportItems.length}
+                      onCheckedChange={toggleSelectAll}
+                    />
+                  </TableHead>
                   <TableHead>Tanggal</TableHead>
                   <TableHead>Produk</TableHead>
                   <TableHead className="text-center">Qty</TableHead>
@@ -233,13 +336,19 @@ const Reports = () => {
               <TableBody>
                 {reportItems.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center text-muted-foreground">
+                    <TableCell colSpan={7} className="text-center text-muted-foreground">
                       Tidak ada transaksi pada periode ini
                     </TableCell>
                   </TableRow>
                 ) : (
-                  reportItems.map((item, index) => (
-                    <TableRow key={index}>
+                  reportItems.map((item) => (
+                    <TableRow key={item.id}>
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedItems.has(item.id)}
+                          onCheckedChange={() => toggleSelectItem(item.id)}
+                        />
+                      </TableCell>
                       <TableCell>{item.date}</TableCell>
                       <TableCell className="font-medium">{item.productName}</TableCell>
                       <TableCell className="text-center">{item.quantity}</TableCell>
@@ -260,6 +369,21 @@ const Reports = () => {
           </div>
         </CardContent>
       </Card>
+
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus Laporan?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Anda akan menghapus {selectedItems.size} item laporan. Tindakan ini tidak dapat dibatalkan.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteSelected}>Hapus</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

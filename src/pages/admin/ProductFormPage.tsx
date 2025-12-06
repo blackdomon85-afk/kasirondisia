@@ -11,19 +11,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Upload, ArrowLeft } from "lucide-react";
+import { Upload, ArrowLeft, AlertTriangle } from "lucide-react";
 
-const CATEGORIES = [
-  "Makanan",
-  "Minuman",
-  "Elektronik",
-  "Pakaian",
-  "Alat Tulis",
-  "Kesehatan",
-  "Lainnya",
-];
+interface Category {
+  id: string;
+  name: string;
+}
 
 const ProductFormPage = () => {
   const navigate = useNavigate();
@@ -42,13 +38,29 @@ const ProductFormPage = () => {
   const [category, setCategory] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [categories, setCategories] = useState<Category[]>([]);
   const { toast } = useToast();
 
   useEffect(() => {
+    fetchCategories();
     if (productId) {
       fetchProduct();
     }
   }, [productId]);
+
+  const fetchCategories = async () => {
+    const { data, error } = await supabase
+      .from("categories")
+      .select("id, name")
+      .order("name");
+
+    if (!error && data) {
+      setCategories(data);
+    }
+  };
+
+  // Validasi harga beli lebih besar dari harga satuan
+  const isPriceWarning = purchasePrice && price && parseFloat(purchasePrice) > parseFloat(price);
 
   const fetchProduct = async () => {
     const { data, error } = await supabase
@@ -217,7 +229,7 @@ const ProductFormPage = () => {
                   onChange={(e) => setPurchasePrice(e.target.value)}
                   required
                   min="0"
-                  step="100"
+                  step="1"
                 />
               </div>
 
@@ -231,9 +243,20 @@ const ProductFormPage = () => {
                   onChange={(e) => setPrice(e.target.value)}
                   required
                   min="0"
-                  step="100"
+                  step="1"
                 />
               </div>
+
+              {isPriceWarning && (
+                <div className="md:col-span-2">
+                  <Alert variant="destructive" className="border-warning bg-warning/10">
+                    <AlertTriangle className="h-4 w-4 text-warning" />
+                    <AlertDescription className="text-warning">
+                      Peringatan: Harga beli lebih besar dari harga satuan. Anda akan mengalami kerugian pada produk ini.
+                    </AlertDescription>
+                  </Alert>
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="wholesalePrice">Harga Grosir per Pcs</Label>
@@ -244,7 +267,7 @@ const ProductFormPage = () => {
                   value={wholesalePrice}
                   onChange={(e) => setWholesalePrice(e.target.value)}
                   min="0"
-                  step="100"
+                  step="1"
                 />
               </div>
 
@@ -280,9 +303,9 @@ const ProductFormPage = () => {
                     <SelectValue placeholder="Pilih kategori" />
                   </SelectTrigger>
                   <SelectContent>
-                    {CATEGORIES.map((cat) => (
-                      <SelectItem key={cat} value={cat}>
-                        {cat}
+                    {categories.map((cat) => (
+                      <SelectItem key={cat.id} value={cat.name}>
+                        {cat.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
