@@ -1,4 +1,4 @@
-import { Home, LayoutDashboard, Package, FileText, LogOut, Settings, Globe } from "lucide-react";
+import { Home, LayoutDashboard, Package, FileText, LogOut, Settings, Globe, Tags } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,7 @@ import {
 const items = [
   { title: "Dashboard", url: "/admin", icon: LayoutDashboard },
   { title: "Produk", url: "/admin/products", icon: Package },
+  { title: "Kategori", url: "/admin/categories", icon: Tags },
   { title: "Satuan Master Data", url: "/admin/product-unit-master", icon: Settings },
   { title: "Satuan Produk Global", url: "/admin/product-global", icon: Globe },
   { title: "Laporan", url: "/admin/reports", icon: FileText },

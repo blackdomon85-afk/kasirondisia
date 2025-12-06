@@ -501,9 +501,19 @@ const Kasir = () => {
                               >
                                 -
                               </Button>
-                              <span className="text-base font-bold w-10 text-center bg-muted rounded px-2 py-1">
-                                {item.quantity}
-                              </span>
+                              <Input
+                                type="number"
+                                min="1"
+                                max={products.find(p => p.id === item.id)?.stock || 999}
+                                value={item.quantity}
+                                onChange={(e) => {
+                                  const val = parseInt(e.target.value) || 0;
+                                  if (val > 0) {
+                                    updateQuantity(item.id, val);
+                                  }
+                                }}
+                                className="w-16 h-8 text-center font-bold text-base border-2"
+                              />
                               <Button
                                 variant="outline"
                                 size="icon"
