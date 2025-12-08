@@ -20,8 +20,6 @@ const items = [
   { title: "Dashboard", url: "/admin", icon: LayoutDashboard },
   { title: "Produk", url: "/admin/products", icon: Package },
   { title: "Kategori", url: "/admin/categories", icon: Tags },
-  { title: "Satuan Master Data", url: "/admin/product-unit-master", icon: Settings },
-  { title: "Satuan Produk Global", url: "/admin/product-global", icon: Globe },
   { title: "Laporan", url: "/admin/reports", icon: FileText },
 ];
 

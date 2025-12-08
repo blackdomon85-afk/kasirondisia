@@ -21,6 +21,7 @@ interface Category {
   name: string;
 }
 
+
 const ProductFormPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -39,6 +40,8 @@ const ProductFormPage = () => {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [packagingDescription, setPackagingDescription] = useState("");
+  const [packagingQuantity, setPackagingQuantity] = useState("1");
   const { toast } = useToast();
 
   useEffect(() => {
@@ -79,16 +82,34 @@ const ProductFormPage = () => {
       return;
     }
 
-    setName(data.name);
-    setBarcode(data.barcode);
-    setPurchasePrice(data.purchase_price?.toString() || "");
-    setPrice(data.price.toString());
-    setWholesalePrice(data.wholesale_price?.toString() || "");
-    setWholesaleThreshold(data.wholesale_threshold?.toString() || "");
-    setStock(data.stock.toString());
-    setCategory(data.category);
-    setImagePreview(data.image_url);
+    // Cast data ke tipe yang mengizinkan properti optional
+    const product = data as {
+      name: string;
+      barcode?: string;
+      purchase_price?: number | null;
+      price: number;
+      wholesale_price?: number | null;
+      wholesale_threshold?: number | null;
+      stock?: number;
+      category?: string;
+      image_url?: string | null;
+      packaging_description?: string | null;
+      packaging_quantity?: number | null;
+    };
+
+    setName(product.name);
+    setBarcode(product.barcode || "");
+    setPurchasePrice(product.purchase_price?.toString() || "");
+    setPrice(product.price?.toString() || "");
+    setWholesalePrice(product.wholesale_price?.toString() || "");
+    setWholesaleThreshold(product.wholesale_threshold?.toString() || "");
+    setStock((product.stock ?? 0).toString());
+    setCategory(product.category || "");
+    setImagePreview(product.image_url || null);
+    setPackagingDescription(product.packaging_description || "");
+    setPackagingQuantity((product.packaging_quantity ?? 1).toString());
   };
+
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -138,6 +159,8 @@ const ProductFormPage = () => {
         stock: parseInt(stock),
         category,
         image_url: imageUrl,
+        packaging_description: packagingDescription || null,
+        packaging_quantity: packagingDescription ? parseInt(packagingQuantity) : 1,
       };
 
       if (isEdit) {
@@ -164,7 +187,7 @@ const ProductFormPage = () => {
       }
 
       navigate("/admin/products");
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: "Error",
         description: error.message,
@@ -295,6 +318,30 @@ const ProductFormPage = () => {
                   min="0"
                 />
               </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="packagingDescription">Keterangan Kemasan</Label>
+                <Input
+                  id="packagingDescription"
+                  placeholder="Contoh: Renteng, Pack, Box, dll"
+                  value={packagingDescription}
+                  onChange={(e) => setPackagingDescription(e.target.value)}
+                />
+              </div>
+
+              {packagingDescription && (
+                <div className="space-y-2">
+                  <Label htmlFor="packagingQuantity">Jumlah per {packagingDescription}</Label>
+                  <Input
+                    id="packagingQuantity"
+                    type="number"
+                    min="1"
+                    value={packagingQuantity}
+                    onChange={(e) => setPackagingQuantity(e.target.value)}
+                    placeholder="Contoh: 12"
+                  />
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="category">Kategori *</Label>
