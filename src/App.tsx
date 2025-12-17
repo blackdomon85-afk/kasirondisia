@@ -12,6 +12,7 @@ import Products from "./pages/admin/Products";
 import ProductFormPage from "./pages/admin/ProductFormPage";
 import Categories from "./pages/admin/Categories";
 import Reports from "./pages/admin/Reports";
+import Restock from "./pages/admin/Restock";
 import NotFound from "./pages/NotFound";
 import ProtectedRoute from "./components/ProtectedRoute";
 
@@ -48,6 +49,7 @@ const App = () => (
               <Route path="products/form" element={<ProductFormPage />} />
               <Route path="categories" element={<Categories />} />
               <Route path="reports" element={<Reports />} />
+              <Route path="restock" element={<Restock />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>

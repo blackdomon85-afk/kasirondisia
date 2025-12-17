@@ -127,6 +127,33 @@ export type Database = {
         }
         Relationships: []
       }
+      restock_purchases: {
+        Row: {
+          amount: number
+          created_at: string
+          date: string
+          id: string
+          note: string | null
+          user_id: string | null
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          date?: string
+          id?: string
+          note?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          date?: string
+          id?: string
+          note?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       transaction_items: {
         Row: {
           created_at: string

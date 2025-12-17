@@ -1,4 +1,5 @@
-import { Home, LayoutDashboard, Package, FileText, LogOut, Settings, Globe, Tags } from "lucide-react";
+import { LayoutDashboard, Package, Tags, FileBarChart, ShoppingCart, LogOut, ShoppingBag, // Import ShoppingBag icon
+} from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -20,7 +21,16 @@ const items = [
   { title: "Dashboard", url: "/admin", icon: LayoutDashboard },
   { title: "Produk", url: "/admin/products", icon: Package },
   { title: "Kategori", url: "/admin/categories", icon: Tags },
-  { title: "Laporan", url: "/admin/reports", icon: FileText },
+  {
+    title: "Laporan",
+    url: "/admin/reports",
+    icon: FileBarChart,
+  },
+  {
+    title: "Belanja Restok",
+    url: "/admin/restock",
+    icon: ShoppingBag,
+  },
 ];
 
 export function AppSidebar() {

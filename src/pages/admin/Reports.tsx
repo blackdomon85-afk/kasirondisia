@@ -46,6 +46,7 @@ interface ReportItem {
 const Reports = () => {
   const [period, setPeriod] = useState("month");
   const [reportItems, setReportItems] = useState<ReportItem[]>([]);
+  const [totalRestock, setTotalRestock] = useState(0);
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const { toast } = useToast();
@@ -129,6 +130,16 @@ const Reports = () => {
     const productPriceMap = new Map(
       products?.map((p) => [p.id, p.purchase_price]) || []
     );
+
+    // Fetch restock purchases for the same period
+    const { data: restockData } = await supabase
+      .from("restock_purchases")
+      .select("amount")
+      .gte("date", startDateTime.toISOString())
+      .lte("date", endDateTime.toISOString());
+
+    const restockSum = restockData?.reduce((sum, item) => sum + item.amount, 0) || 0;
+    setTotalRestock(restockSum);
 
     const items: ReportItem[] = (transactionItems || []).map((item: any) => {
       const purchasePrice = item.product_id 
@@ -222,6 +233,7 @@ const Reports = () => {
   const totalQuantity = reportItems.reduce((sum, item) => sum + item.quantity, 0);
   const totalProfit = reportItems.reduce((sum, item) => sum + item.profit, 0);
   const totalRevenue = reportItems.reduce((sum, item) => sum + (item.purchasePrice * item.quantity), 0);
+  const netBalance = totalRevenue - totalRestock;
 
   const getPeriodLabel = () => {
     switch (period) {
@@ -279,7 +291,7 @@ const Reports = () => {
           <CardTitle>Ringkasan - {getPeriodLabel()}</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid md:grid-cols-3 gap-6 mb-6">
+          <div className="grid md:grid-cols-4 gap-4 mb-6">
             <Card>
               <CardContent className="pt-6">
                 <p className="text-sm text-muted-foreground mb-2">
@@ -311,6 +323,29 @@ const Reports = () => {
                   Rp {totalProfit.toLocaleString("id-ID")}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">keuntungan bersih</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-6">
+                <p className="text-sm text-muted-foreground mb-2">
+                  Total Belanja Restok
+                </p>
+                <p className="text-3xl font-bold text-destructive">
+                  Rp {totalRestock.toLocaleString("id-ID")}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">pengeluaran stok</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="pt-6">
+                <p className="text-sm text-muted-foreground mb-2">
+                  Sisa Saldo Modal
+                </p>
+                <p className={`text-3xl font-bold ${netBalance >= 0 ? "text-blue-500" : "text-destructive"}`}>
+                  Rp {netBalance.toLocaleString("id-ID")}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">modal penjualan - belanja</p>
               </CardContent>
             </Card>
           </div>
